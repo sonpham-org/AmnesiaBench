@@ -177,9 +177,10 @@ class PythonSandbox:
 
 # ─── Exponential Backoff ─────────────────────────────────────────────────────
 
-def with_exponential_backoff(fn, max_retries=5, base_delay=1.0, max_delay=60.0):
+def with_exponential_backoff(fn, max_retries=20, base_delay=2.0, max_delay=120.0):
     """
     Wrap any API call with exponential backoff on 429/503 errors.
+    Respects Retry-After header when present.
     Uses full jitter: delay = min(base * 2^attempt + uniform(0,1), max_delay).
     Raises immediately on non-retriable errors or when retries are exhausted.
     """
@@ -188,7 +189,15 @@ def with_exponential_backoff(fn, max_retries=5, base_delay=1.0, max_delay=60.0):
             return fn()
         except requests.HTTPError as e:
             if e.response.status_code in (429, 503) and attempt < max_retries - 1:
-                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                # Respect Retry-After header if present
+                retry_after = e.response.headers.get("Retry-After") or e.response.headers.get("x-ratelimit-reset-requests")
+                if retry_after:
+                    try:
+                        delay = float(retry_after)
+                    except ValueError:
+                        delay = min(base_delay * (2 ** attempt) + random.uniform(0, 2), max_delay)
+                else:
+                    delay = min(base_delay * (2 ** attempt) + random.uniform(0, 2), max_delay)
                 print(f"    [backoff] {e.response.status_code} — retrying in {delay:.1f}s (attempt {attempt+1}/{max_retries})")
                 time.sleep(delay)
             else:
@@ -222,9 +231,13 @@ class LLMClient:
         def _do_request():
             if self.model_name:
                 payload["model"] = self.model_name
+            headers = dict(self.auth_header)
+            # Enable prompt caching for OpenRouter (reduces cost + latency on repeated prompts)
+            if "openrouter.ai" in self.server_url:
+                headers["X-OpenRouter-Cache"] = "true"
             resp = requests.post(
                 f"{self.server_url}/v1/chat/completions",
-                headers=self.auth_header,
+                headers=headers,
                 json=payload,
                 timeout=3600,
                 stream=True,
