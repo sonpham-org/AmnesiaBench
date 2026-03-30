@@ -299,8 +299,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_model_args(p_eval)
     _add_problem_args(p_eval)
     _add_results_arg(p_eval)
-    p_eval.add_argument("--context-max", type=int, default=None,
-                        help="Override max context window for this model")
+    # --context-max already added by _add_model_args
     p_eval.add_argument("--force", action="store_true", help="Re-run even if result exists")
 
     # score
