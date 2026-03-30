@@ -166,6 +166,7 @@ def run_evaluation(
         print(f"  [evaluate] Unbounded test — no context restriction, measuring natural usage...")
         unbounded_pass, unbounded_log = _test_unbounded(
             client, problem_text, ground_truth, state=state,
+            context_max=context_max,
         )
         if not unbounded_pass:
             print(f"  [evaluate] UNSOLVABLE at context_max={context_max} — skipping search")
@@ -555,6 +556,7 @@ def _inner_binary_search(
 
 def _test_unbounded(
     client, problem_text: str, ground_truth: str, state: dict,
+    context_max: int = 262144,
 ) -> tuple:
     """
     Run ONE trial with NO context window restriction.
@@ -576,7 +578,7 @@ def _test_unbounded(
 
     try:
         # Use a generous max_tokens but don't tell the model about any limit
-        resp = client.generate(messages, max_tokens=16384, stream=False)
+        resp = client.generate(messages, max_tokens=context_max, stream=False)
     except Exception as e:
         result = {
             "trial_idx": 0, "N": "unbounded", "success": False,
