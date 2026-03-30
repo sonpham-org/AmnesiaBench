@@ -5,6 +5,9 @@
 #   and create_client() factory. Each client returns the same dict shape from generate().
 #   Integration points: imported by predict.py and evaluate.py.
 #   Exponential backoff is applied inside each client via backoff.with_exponential_backoff().
+#   v3.1: Added stream=False support to LLMClient for exact token counts + llama-server
+#   timings block (prefill/decode speeds, KV cache hits). GeminiClient and AnthropicClient
+#   accept stream param for API consistency but handle streaming internally.
 # SRP/DRY check: Pass — one class per backend; factory is the only routing logic; no
 #   prompt construction here (that lives in prompts.py).
 
@@ -26,7 +29,10 @@ class LLMClient:
     """
     Client for any OpenAI-compatible /v1/chat/completions endpoint.
     Covers llama.cpp local servers and OpenRouter (via model_name passthrough).
-    Streams responses; counts reasoning_content tokens for models like DeepSeek R1.
+
+    stream=True  → SSE streaming (for predict / interactive use)
+    stream=False → single JSON response; llama-server returns timings block with
+                   exact prefill/decode speeds and KV cache hit counts.
     """
 
     def __init__(
@@ -41,25 +47,32 @@ class LLMClient:
         self.model_name = model_name
         self._auth_header = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
-    def generate(self, messages: list, max_tokens: int) -> dict:
+    def generate(self, messages: list, max_tokens: int, stream: bool = True) -> dict:
         """
         Send messages to the model. Returns:
         {
             content: str,           # full content (including <think> wrapper if reasoning)
-            reasoning_content: str, # raw reasoning/thinking tokens
-            final_content: str,     # non-reasoning response text
+            reasoning_content: str, # raw reasoning/thinking tokens (DeepSeek R1, etc.)
+            final_content: str,     # non-reasoning response text only
             input_tokens: int,      # prompt token count
             output_tokens: int,     # completion token count (all tokens incl. reasoning)
+            thinking_tokens: int,   # reasoning-only tokens (0 for most models)
             total_tokens: int,
             finish_reason: str,
+            timings: dict,          # llama-server timings (non-streaming only; {} otherwise)
         }
+
+        timings keys (when stream=False against llama-server):
+            cache_n, prompt_n, prompt_ms, prompt_per_second,
+            predicted_n, predicted_ms, predicted_per_second
         """
         max_tokens = max(1, max_tokens)
+        url = f"{self.server_url}/v1/chat/completions"
         payload = {
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": self.temperature,
-            "stream": True,
+            "stream": stream,
         }
         if self.model_name:
             payload["model"] = self.model_name
@@ -69,17 +82,59 @@ class LLMClient:
             if "openrouter.ai" in self.server_url:
                 headers["X-OpenRouter-Cache"] = "true"
             resp = requests.post(
-                f"{self.server_url}/v1/chat/completions",
+                url,
                 headers=headers,
                 json=payload,
                 timeout=3600,
-                stream=True,
+                stream=stream,
             )
             resp.raise_for_status()
             return resp
 
         resp = with_exponential_backoff(_do_request)
 
+        # ── Non-streaming path ────────────────────────────────────────────────
+        if not stream:
+            data = resp.json()
+            choice = data.get("choices", [{}])[0]
+            message = choice.get("message", {})
+            content = message.get("content", "") or ""
+            reasoning = message.get("reasoning_content", "") or ""
+            finish_reason = choice.get("finish_reason", "stop") or "stop"
+
+            usage = data.get("usage", {})
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
+
+            timings = data.get("timings", {})
+            prefill_tps = timings.get("prompt_per_second", 0)
+            decode_tps = timings.get("predicted_per_second", 0)
+            cache_n = timings.get("cache_n", 0)
+
+            if reasoning:
+                full_content = f"<think>\n{reasoning}\n</think>\n{content}"
+            else:
+                full_content = content
+
+            print(
+                f"    [llm] in={input_tokens} out={output_tokens} | {finish_reason} | "
+                f"prefill={prefill_tps:.0f}t/s decode={decode_tps:.0f}t/s cache={cache_n}"
+            )
+
+            return {
+                "content": full_content,
+                "reasoning_content": reasoning,
+                "final_content": content,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "thinking_tokens": 0,
+                "total_tokens": total_tokens,
+                "finish_reason": finish_reason,
+                "timings": timings,
+            }
+
+        # ── Streaming path (predict / interactive) ────────────────────────────
         reasoning = ""
         content = ""
         input_tokens = 0
@@ -127,7 +182,6 @@ class LLMClient:
         else:
             full_content = content
 
-        # Ensure total_tokens covers everything including reasoning
         if total_tokens == 0:
             total_tokens = input_tokens + output_tokens
 
@@ -137,8 +191,10 @@ class LLMClient:
             "final_content": content,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "thinking_tokens": 0,
             "total_tokens": total_tokens,
             "finish_reason": finish_reason,
+            "timings": {},
         }
 
     def ping(self) -> bool:
@@ -161,6 +217,7 @@ class GeminiClient:
     Client for Google Gemini generateContent API.
     Accepts OpenAI-style message lists; converts to Gemini format internally.
     Returns same dict shape as LLMClient.generate().
+    stream parameter accepted for API consistency but ignored (Gemini uses REST).
     """
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -190,7 +247,7 @@ class GeminiClient:
                 contents.append({"role": "user", "parts": [{"text": text}]})
         return system_instruction, contents
 
-    def generate(self, messages: list, max_tokens: int) -> dict:
+    def generate(self, messages: list, max_tokens: int, stream: bool = True) -> dict:
         max_tokens = max(1, max_tokens)
         system_instruction, contents = self._convert_messages(messages)
 
@@ -241,8 +298,10 @@ class GeminiClient:
             "final_content": content,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "thinking_tokens": 0,
             "total_tokens": total_tokens,
             "finish_reason": finish_reason,
+            "timings": {},
         }
 
     def ping(self) -> bool:
@@ -266,11 +325,12 @@ class AnthropicClient:
 
     Features:
         - Prompt caching on system message via cache_control: {"type": "ephemeral"}
-        - Streaming for progress visibility
-        - Extended thinking tokens counted in output_tokens total
+        - Streaming via SSE (stream param accepted for API consistency but ignored)
+        - Extended thinking tokens tracked in thinking_tokens field
         - Supported models: claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5
 
     Returns same dict shape as LLMClient.generate().
+    timings is always {} (Anthropic API does not return llama-style timings).
     """
 
     ENDPOINT = "https://api.anthropic.com/v1/messages"
@@ -302,8 +362,7 @@ class AnthropicClient:
         """
         Split OpenAI-style messages into (system_blocks, anthropic_messages).
         System messages are converted to Anthropic's system block format with
-        cache_control for prompt caching. Non-system messages become the
-        messages array.
+        cache_control for prompt caching.
         """
         system_blocks = []
         anthropic_messages = []
@@ -324,7 +383,8 @@ class AnthropicClient:
 
         return system_blocks, anthropic_messages
 
-    def generate(self, messages: list, max_tokens: int) -> dict:
+    def generate(self, messages: list, max_tokens: int, stream: bool = True) -> dict:
+        # Anthropic always uses SSE internally; stream param accepted for API consistency
         max_tokens = max(1, max_tokens)
         system_blocks, anthropic_messages = self._convert_messages(messages)
 
@@ -351,13 +411,12 @@ class AnthropicClient:
 
         resp = with_exponential_backoff(_do_request)
 
-        # Parse SSE stream
         content_text = ""
         thinking_text = ""
         input_tokens = 0
         output_tokens = 0
         finish_reason = "unknown"
-        current_block_type = None
+        current_block_type = None  # noqa: F841
 
         print("    [anthropic] ", end="", flush=True)
 
@@ -367,7 +426,6 @@ class AnthropicClient:
             text = line.decode("utf-8") if isinstance(line, bytes) else line
 
             if text.startswith("event: "):
-                event_type = text[7:].strip()
                 continue
 
             if not text.startswith("data: "):
@@ -421,13 +479,14 @@ class AnthropicClient:
 
         print()
 
-        # Merge thinking + content; thinking tokens are already in output_tokens
         if thinking_text:
             full_content = f"<think>\n{thinking_text}\n</think>\n{content_text}"
         else:
             full_content = content_text
 
         total_tokens = input_tokens + output_tokens
+        # Rough thinking token estimate — Anthropic includes thinking in output_tokens
+        thinking_tokens = len(thinking_text) // 4 if thinking_text else 0
 
         return {
             "content": full_content,
@@ -435,8 +494,10 @@ class AnthropicClient:
             "final_content": content_text,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "thinking_tokens": thinking_tokens,
             "total_tokens": total_tokens,
             "finish_reason": finish_reason,
+            "timings": {},
         }
 
     def ping(self) -> bool:

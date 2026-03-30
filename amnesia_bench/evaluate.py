@@ -1,11 +1,15 @@
 # Author: Claude Sonnet 4.6 (Bubba)
 # Date: 29-March-2026
-# PURPOSE: Evaluation job for AmnesiaBench v3. Implements nested binary search to find
+# PURPOSE: Evaluation job for AmnesiaBench v3.1. Implements nested binary search to find
 #   n_reliable — the smallest context window N where the model can solve a problem at
-#   >=66.7% success rate (2/3 passes). Saves results to {model}_{problem}_evaluation.json.
+#   >=66.7% success rate (2/3 passes). Runs the binary search TWICE: once without
+#   compaction (n_reliable_no_compact) and once with compaction (n_reliable_compact).
+#   Saves full conversation traces per trial to traces/{model}_{problem_id}/.
+#   Uses stream=False for all evaluation calls to get exact token counts + llama-server
+#   timings (prefill/decode speed, KV cache hits).
 #   Integration points: called by cli.py; imports clients, prompts, utils, backoff.
 #   Checks prediction file first — if attempt=False, skips evaluation entirely.
-#   Resume-friendly: skips if evaluation file already exists.
+#   Resume-friendly: skips if evaluation file already exists with status=completed.
 # SRP/DRY check: Pass — binary search logic is isolated here; no prediction or scoring
 #   code. Prompt construction delegates to prompts.py.
 
@@ -19,7 +23,7 @@ from typing import Optional
 
 from .backoff import ResumptionQueue
 from .prompts import build_evaluation_prompt
-from .utils import extract_final_answer, prediction_filename, evaluation_filename
+from .utils import extract_final_answer, prediction_filename, evaluation_filename, sanitize_model_name
 
 _PACKAGE_DIR = Path(__file__).parent
 DEFAULT_RESULTS_DIR = _PACKAGE_DIR.parent / "results"
@@ -52,9 +56,9 @@ def run_evaluation(
 
     Flow:
       1. Check prediction file — if attempt=False, skip.
-      2. Test at full context_max (unbounded). If fails → n_while_unbounded=None.
-      3. Outer binary search: find the rough transition point.
-      4. Inner binary search: 3-trial refinement around the transition.
+      2. Test at full context_max (unbounded, no compaction). Record actual tokens used.
+      3. Run binary search WITHOUT compaction → n_reliable_no_compact.
+      4. Run binary search WITH compaction → n_reliable_compact.
       5. Save and return result.
 
     Result schema:
@@ -63,9 +67,12 @@ def run_evaluation(
         "problem_id": str,
         "timestamp": ISO-8601 str,
         "n_while_unbounded": int or null,
-        "n_reliable": int or null,
-        "outer_search_log": [...],
-        "inner_search_log": [...],
+        "n_reliable_no_compact": int or null,
+        "n_reliable_compact": int or null,
+        "no_compact_outer_log": [...],
+        "no_compact_inner_log": [...],
+        "compact_outer_log": [...],
+        "compact_inner_log": [...],
         "search_range_final": [lo, hi],
         "total_api_calls": int,
         "total_input_tokens": int,
@@ -106,16 +113,15 @@ def run_evaluation(
             result = _build_result(
                 model_name, problem_id,
                 n_while_unbounded=None,
-                n_reliable=None,
-                outer_log=[],
-                inner_log=[],
+                n_reliable_no_compact=None,
+                n_reliable_compact=None,
+                no_compact_outer_log=[],
+                no_compact_inner_log=[],
+                compact_outer_log=[],
+                compact_inner_log=[],
                 search_range=[N_MIN, context_max],
-                api_calls=0,
-                input_tokens=0,
-                output_tokens=0,
-                cost=0.0,
-                wall_time=0.0,
-                skipped=True,
+                api_calls=0, input_tokens=0, output_tokens=0,
+                cost=0.0, wall_time=0.0, skipped=True,
             )
             out_path.write_text(json.dumps(result, indent=2))
             return result
@@ -131,154 +137,233 @@ def run_evaluation(
 
     problem_text = problem["problem_text"]
     ground_truth = str(problem.get("ground_truth", ""))
+    safe_model = sanitize_model_name(model_name)
+    traces_dir = results_dir / "traces" / f"{safe_model}_{problem_id}"
+    traces_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Resume from checkpoint if available ───────────────────────────────────
+    # ── Resume from checkpoint ────────────────────────────────────────────────
     if checkpoint:
         n_while_unbounded = checkpoint.get("n_while_unbounded")
-        outer_log = checkpoint.get("outer_search_log", [])
-        inner_log = checkpoint.get("inner_search_log", [])
-        phase = checkpoint.get("phase", "outer")
+        no_compact_outer_log = checkpoint.get("no_compact_outer_log", [])
+        no_compact_inner_log = checkpoint.get("no_compact_inner_log", [])
+        compact_outer_log = checkpoint.get("compact_outer_log", [])
+        compact_inner_log = checkpoint.get("compact_inner_log", [])
+        phase = checkpoint.get("phase", "unbounded")
         state["api_calls"] = checkpoint.get("total_api_calls", 0)
         state["input_tokens"] = checkpoint.get("total_input_tokens", 0)
         state["output_tokens"] = checkpoint.get("total_output_tokens", 0)
+        # Resume logic falls through to the appropriate phase below
+    else:
+        n_while_unbounded = None
+        no_compact_outer_log = []
+        no_compact_inner_log = []
+        compact_outer_log = []
+        compact_inner_log = []
+        phase = "unbounded"
 
-        if n_while_unbounded is None and phase == "unbounded":
-            # Unbounded test hadn't passed yet — redo it
-            pass  # fall through to unbounded test below
-        elif phase == "outer":
-            # Replay outer log to reconstruct lo/hi
-            lo, hi = _replay_search_log(outer_log, N_MIN, n_while_unbounded or context_max)
-            print(f"  [evaluate] Resumed outer search at [{lo}, {hi}] (step {len(outer_log)})")
-            outer_log, transition_lo, transition_hi = _outer_binary_search(
-                client, problem_text, ground_truth,
-                lo=lo, hi=hi, state=state,
-                existing_log=outer_log, checkpoint_path=out_path,
-                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
-                                 "n_while_unbounded": n_while_unbounded},
-            )
-            # Continue to inner search
-            mid = (transition_lo + transition_hi) // 2
-            inner_lo = max(N_MIN, mid - (transition_hi - transition_lo) * 3 // 2)
-            inner_hi = min(n_while_unbounded or context_max, mid + (transition_hi - transition_lo) * 3 // 2)
-            inner_hi = max(inner_hi, transition_hi)
-            print(f"  [evaluate] Inner binary search [{inner_lo}, {inner_hi}]")
-            inner_log, n_reliable = _inner_binary_search(
-                client, problem_text, ground_truth,
-                lo=inner_lo, hi=inner_hi, state=state,
-                existing_log=[], checkpoint_path=out_path,
-                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
-                                 "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
-            )
-            wall_time = round(time.time() - t_start, 2)
-            result = _build_result(
-                model_name, problem_id,
-                n_while_unbounded=n_while_unbounded, n_reliable=n_reliable,
-                outer_log=outer_log, inner_log=inner_log,
-                search_range=[inner_lo, inner_hi],
-                api_calls=state["api_calls"], input_tokens=state["input_tokens"],
-                output_tokens=state["output_tokens"], cost=0.0, wall_time=wall_time,
-                status="completed",
-            )
-            out_path.write_text(json.dumps(result, indent=2))
-            print(f"  [evaluate] DONE — n_reliable={n_reliable} | {wall_time}s → {out_path.name}")
-            return result
-        elif phase == "inner":
-            # Replay inner log
-            outer_log = checkpoint.get("outer_search_log", [])
-            lo, hi = _replay_search_log(inner_log, checkpoint.get("inner_lo", N_MIN), checkpoint.get("inner_hi", context_max))
-            print(f"  [evaluate] Resumed inner search at [{lo}, {hi}] (step {len(inner_log)})")
-            inner_log, n_reliable = _inner_binary_search(
-                client, problem_text, ground_truth,
-                lo=lo, hi=hi, state=state,
-                existing_log=inner_log, checkpoint_path=out_path,
-                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
-                                 "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
-            )
-            wall_time = round(time.time() - t_start, 2)
-            result = _build_result(
-                model_name, problem_id,
-                n_while_unbounded=n_while_unbounded, n_reliable=n_reliable,
-                outer_log=outer_log, inner_log=inner_log,
-                search_range=[lo, hi],
-                api_calls=state["api_calls"], input_tokens=state["input_tokens"],
-                output_tokens=state["output_tokens"], cost=0.0, wall_time=wall_time,
-                status="completed",
-            )
-            out_path.write_text(json.dumps(result, indent=2))
-            print(f"  [evaluate] DONE — n_reliable={n_reliable} | {wall_time}s → {out_path.name}")
-            return result
-
-    # ── Step 1: Unbounded test ────────────────────────────────────────────────
-    print(f"  [evaluate] Unbounded test at N={context_max} ...")
-    unbounded_pass, unbounded_log = _test_n(
-        client, problem_text, ground_truth, context_max, n_trials=1, state=state
-    )
-    if not unbounded_pass:
-        print(f"  [evaluate] UNSOLVABLE at context_max={context_max} — skipping search")
-        result = _build_result(
-            model_name, problem_id,
-            n_while_unbounded=None,
-            n_reliable=None,
-            outer_log=unbounded_log,
-            inner_log=[],
-            search_range=[N_MIN, context_max],
-            api_calls=state["api_calls"],
-            input_tokens=state["input_tokens"],
-            output_tokens=state["output_tokens"],
-            cost=0.0,
-            wall_time=round(time.time() - t_start, 2),
-            status="completed",
+    # ── Step 1: Unbounded test (no compaction) ────────────────────────────────
+    if phase == "unbounded" or n_while_unbounded is None:
+        print(f"  [evaluate] Unbounded test at N={context_max} (no compaction) ...")
+        unbounded_pass, unbounded_log = _test_n(
+            client, problem_text, ground_truth, context_max,
+            n_trials=1, state=state,
+            compaction_enabled=False,
+            traces_dir=traces_dir,
         )
-        out_path.write_text(json.dumps(result, indent=2))
-        return result
+        if not unbounded_pass:
+            print(f"  [evaluate] UNSOLVABLE at context_max={context_max} — skipping search")
+            result = _build_result(
+                model_name, problem_id,
+                n_while_unbounded=None,
+                n_reliable_no_compact=None,
+                n_reliable_compact=None,
+                no_compact_outer_log=unbounded_log,
+                no_compact_inner_log=[],
+                compact_outer_log=[],
+                compact_inner_log=[],
+                search_range=[N_MIN, context_max],
+                api_calls=state["api_calls"],
+                input_tokens=state["input_tokens"],
+                output_tokens=state["output_tokens"],
+                cost=0.0,
+                wall_time=round(time.time() - t_start, 2),
+                status="completed",
+            )
+            out_path.write_text(json.dumps(result, indent=2))
+            return result
 
-    # Record actual tokens used, not context_max
-    n_while_unbounded = max(
-        (t.get("total_tokens", 0) for t in unbounded_log if t.get("success")),
-        default=0,
-    )
-    if n_while_unbounded == 0:
-        n_while_unbounded = context_max  # fallback if token counting failed
-    print(f"  [evaluate] n_while_unbounded={n_while_unbounded} (actual tokens used)")
+        # Use actual tokens from the successful trial, not context_max
+        actual_tokens = max(
+            (t.get("total_tokens", 0) for t in unbounded_log if t.get("success")),
+            default=0,
+        )
+        if actual_tokens == 0:
+            # Token counting failed or streaming fallback — estimate from content
+            for t in unbounded_log:
+                if t.get("success"):
+                    content_len = len(t.get("content_snapshot", ""))
+                    actual_tokens = max(actual_tokens, content_len // 4)
+        if actual_tokens == 0:
+            actual_tokens = context_max
+        n_while_unbounded = actual_tokens
+        print(f"  [evaluate] n_while_unbounded={n_while_unbounded} (actual tokens used)")
+        phase = "no_compact_outer"
 
-    # ── Step 2: Outer binary search (with checkpointing) ─────────────────────
-    print(f"  [evaluate] Outer binary search [{N_MIN}, {n_while_unbounded}] ...")
-    outer_log, transition_lo, transition_hi = _outer_binary_search(
-        client, problem_text, ground_truth,
-        lo=N_MIN, hi=n_while_unbounded,
-        state=state,
-        checkpoint_path=out_path,
-        checkpoint_data={"model_name": model_name, "problem_id": problem_id,
-                         "n_while_unbounded": n_while_unbounded},
-    )
+        _write_checkpoint(
+            out_path, {"model_name": model_name, "problem_id": problem_id},
+            phase=phase,
+            no_compact_outer_log=no_compact_outer_log,
+            no_compact_inner_log=no_compact_inner_log,
+            compact_outer_log=compact_outer_log,
+            compact_inner_log=compact_inner_log,
+            state=state,
+            extra={"n_while_unbounded": n_while_unbounded},
+        )
 
-    # ── Step 3: Inner binary search (with checkpointing) ─────────────────────
-    mid = (transition_lo + transition_hi) // 2
-    inner_lo = max(N_MIN, mid - (transition_hi - transition_lo) * 3 // 2)
-    inner_hi = min(n_while_unbounded, mid + (transition_hi - transition_lo) * 3 // 2)
-    inner_hi = max(inner_hi, transition_hi)
+    # ── Step 2: Binary search WITHOUT compaction ──────────────────────────────
+    if phase in ("no_compact_outer", "no_compact_inner") or not no_compact_outer_log:
+        print(f"  [evaluate] Outer binary search (NO compaction) [{N_MIN}, {n_while_unbounded}] ...")
+        if phase == "no_compact_outer":
+            nc_outer_lo, nc_outer_hi = N_MIN, n_while_unbounded
+        else:
+            nc_outer_lo, nc_outer_hi = _replay_search_log(
+                no_compact_outer_log, N_MIN, n_while_unbounded
+            )
 
-    print(
-        f"  [evaluate] Inner binary search [{inner_lo}, {inner_hi}] "
-        f"(3× expansion around transition [{transition_lo}, {transition_hi}])"
-    )
-    inner_log, n_reliable = _inner_binary_search(
-        client, problem_text, ground_truth,
-        lo=inner_lo, hi=inner_hi,
-        state=state,
-        checkpoint_path=out_path,
-        checkpoint_data={"model_name": model_name, "problem_id": problem_id,
-                         "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
-    )
+        no_compact_outer_log, nc_transition_lo, nc_transition_hi = _outer_binary_search(
+            client, problem_text, ground_truth,
+            lo=nc_outer_lo, hi=nc_outer_hi,
+            state=state,
+            compaction_enabled=False,
+            existing_log=no_compact_outer_log if phase == "no_compact_outer" else [],
+            checkpoint_path=out_path,
+            checkpoint_data={
+                "model_name": model_name, "problem_id": problem_id,
+                "n_while_unbounded": n_while_unbounded,
+                "no_compact_outer_log": no_compact_outer_log,
+                "no_compact_inner_log": no_compact_inner_log,
+                "compact_outer_log": compact_outer_log,
+                "compact_inner_log": compact_inner_log,
+            },
+            traces_dir=traces_dir,
+        )
+        phase = "no_compact_inner"
+
+        mid = (nc_transition_lo + nc_transition_hi) // 2
+        nc_inner_lo = max(N_MIN, mid - (nc_transition_hi - nc_transition_lo) * 3 // 2)
+        nc_inner_hi = min(n_while_unbounded, mid + (nc_transition_hi - nc_transition_lo) * 3 // 2)
+        nc_inner_hi = max(nc_inner_hi, nc_transition_hi)
+
+        print(
+            f"  [evaluate] Inner binary search (NO compaction) [{nc_inner_lo}, {nc_inner_hi}] ..."
+        )
+        no_compact_inner_log, n_reliable_no_compact = _inner_binary_search(
+            client, problem_text, ground_truth,
+            lo=nc_inner_lo, hi=nc_inner_hi,
+            state=state,
+            compaction_enabled=False,
+            existing_log=[],
+            checkpoint_path=out_path,
+            checkpoint_data={
+                "model_name": model_name, "problem_id": problem_id,
+                "n_while_unbounded": n_while_unbounded,
+                "no_compact_outer_log": no_compact_outer_log,
+                "no_compact_inner_log": no_compact_inner_log,
+                "compact_outer_log": compact_outer_log,
+                "compact_inner_log": compact_inner_log,
+            },
+            traces_dir=traces_dir,
+        )
+        print(f"  [evaluate] n_reliable_no_compact={n_reliable_no_compact}")
+        phase = "compact_outer"
+
+        _write_checkpoint(
+            out_path, {"model_name": model_name, "problem_id": problem_id},
+            phase=phase,
+            no_compact_outer_log=no_compact_outer_log,
+            no_compact_inner_log=no_compact_inner_log,
+            compact_outer_log=compact_outer_log,
+            compact_inner_log=compact_inner_log,
+            state=state,
+            extra={
+                "n_while_unbounded": n_while_unbounded,
+                "n_reliable_no_compact": n_reliable_no_compact,
+            },
+        )
+    else:
+        n_reliable_no_compact = checkpoint.get("n_reliable_no_compact")
+
+    # ── Step 3: Binary search WITH compaction ─────────────────────────────────
+    if phase in ("compact_outer", "compact_inner") or not compact_outer_log:
+        print(f"  [evaluate] Outer binary search (WITH compaction) [{N_MIN}, {n_while_unbounded}] ...")
+        if phase == "compact_outer":
+            c_outer_lo, c_outer_hi = N_MIN, n_while_unbounded
+        else:
+            c_outer_lo, c_outer_hi = _replay_search_log(
+                compact_outer_log, N_MIN, n_while_unbounded
+            )
+
+        compact_outer_log, c_transition_lo, c_transition_hi = _outer_binary_search(
+            client, problem_text, ground_truth,
+            lo=c_outer_lo, hi=c_outer_hi,
+            state=state,
+            compaction_enabled=True,
+            existing_log=compact_outer_log if phase == "compact_outer" else [],
+            checkpoint_path=out_path,
+            checkpoint_data={
+                "model_name": model_name, "problem_id": problem_id,
+                "n_while_unbounded": n_while_unbounded,
+                "n_reliable_no_compact": n_reliable_no_compact,
+                "no_compact_outer_log": no_compact_outer_log,
+                "no_compact_inner_log": no_compact_inner_log,
+                "compact_outer_log": compact_outer_log,
+                "compact_inner_log": compact_inner_log,
+            },
+            traces_dir=traces_dir,
+        )
+        phase = "compact_inner"
+
+        mid = (c_transition_lo + c_transition_hi) // 2
+        c_inner_lo = max(N_MIN, mid - (c_transition_hi - c_transition_lo) * 3 // 2)
+        c_inner_hi = min(n_while_unbounded, mid + (c_transition_hi - c_transition_lo) * 3 // 2)
+        c_inner_hi = max(c_inner_hi, c_transition_hi)
+
+        print(
+            f"  [evaluate] Inner binary search (WITH compaction) [{c_inner_lo}, {c_inner_hi}] ..."
+        )
+        compact_inner_log, n_reliable_compact = _inner_binary_search(
+            client, problem_text, ground_truth,
+            lo=c_inner_lo, hi=c_inner_hi,
+            state=state,
+            compaction_enabled=True,
+            existing_log=[],
+            checkpoint_path=out_path,
+            checkpoint_data={
+                "model_name": model_name, "problem_id": problem_id,
+                "n_while_unbounded": n_while_unbounded,
+                "n_reliable_no_compact": n_reliable_no_compact,
+                "no_compact_outer_log": no_compact_outer_log,
+                "no_compact_inner_log": no_compact_inner_log,
+                "compact_outer_log": compact_outer_log,
+                "compact_inner_log": compact_inner_log,
+            },
+            traces_dir=traces_dir,
+        )
+        print(f"  [evaluate] n_reliable_compact={n_reliable_compact}")
+    else:
+        n_reliable_compact = checkpoint.get("n_reliable_compact")
 
     wall_time = round(time.time() - t_start, 2)
     result = _build_result(
         model_name, problem_id,
         n_while_unbounded=n_while_unbounded,
-        n_reliable=n_reliable,
-        outer_log=outer_log,
-        inner_log=inner_log,
-        search_range=[inner_lo, inner_hi],
+        n_reliable_no_compact=n_reliable_no_compact,
+        n_reliable_compact=n_reliable_compact,
+        no_compact_outer_log=no_compact_outer_log,
+        no_compact_inner_log=no_compact_inner_log,
+        compact_outer_log=compact_outer_log,
+        compact_inner_log=compact_inner_log,
+        search_range=[N_MIN, n_while_unbounded],
         api_calls=state["api_calls"],
         input_tokens=state["input_tokens"],
         output_tokens=state["output_tokens"],
@@ -289,13 +374,48 @@ def run_evaluation(
 
     out_path.write_text(json.dumps(result, indent=2))
     print(
-        f"  [evaluate] DONE — n_reliable={n_reliable} | "
+        f"  [evaluate] DONE — n_reliable_no_compact={n_reliable_no_compact} "
+        f"n_reliable_compact={n_reliable_compact} | "
         f"api_calls={state['api_calls']} | {wall_time}s → {out_path.name}"
     )
     return result
 
 
-# ─── Outer Binary Search ──────────────────────────────────────────────────────
+# ─── Checkpoint Writer ────────────────────────────────────────────────────────
+
+def _write_checkpoint(
+    checkpoint_path: Optional[Path],
+    checkpoint_data: dict,
+    phase: str,
+    no_compact_outer_log: list,
+    no_compact_inner_log: list,
+    compact_outer_log: list,
+    compact_inner_log: list,
+    state: dict,
+    extra: Optional[dict] = None,
+):
+    """Write a running checkpoint to disk after each search step."""
+    if checkpoint_path is None:
+        return
+    data = {
+        **checkpoint_data,
+        "status": "running",
+        "phase": phase,
+        "no_compact_outer_log": no_compact_outer_log,
+        "no_compact_inner_log": no_compact_inner_log,
+        "compact_outer_log": compact_outer_log,
+        "compact_inner_log": compact_inner_log,
+        "total_api_calls": state["api_calls"],
+        "total_input_tokens": state["input_tokens"],
+        "total_output_tokens": state["output_tokens"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if extra:
+        data.update(extra)
+    checkpoint_path.write_text(json.dumps(data, indent=2))
+
+
+# ─── Search Log Replay ────────────────────────────────────────────────────────
 
 def _replay_search_log(log: list, initial_lo: int, initial_hi: int) -> tuple:
     """Replay a search log to reconstruct current lo/hi state."""
@@ -309,40 +429,16 @@ def _replay_search_log(log: list, initial_lo: int, initial_hi: int) -> tuple:
     return lo, hi
 
 
-def _write_checkpoint(
-    checkpoint_path: Optional[Path],
-    checkpoint_data: dict,
-    phase: str,
-    outer_log: list,
-    inner_log: list,
-    state: dict,
-    extra: Optional[dict] = None,
-):
-    """Write a running checkpoint to disk after each search step."""
-    if checkpoint_path is None:
-        return
-    data = {
-        **checkpoint_data,
-        "status": "running",
-        "phase": phase,
-        "outer_search_log": outer_log,
-        "inner_search_log": inner_log,
-        "total_api_calls": state["api_calls"],
-        "total_input_tokens": state["input_tokens"],
-        "total_output_tokens": state["output_tokens"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    if extra:
-        data.update(extra)
-    checkpoint_path.write_text(json.dumps(data, indent=2))
-
+# ─── Outer Binary Search ──────────────────────────────────────────────────────
 
 def _outer_binary_search(
     client, problem_text: str, ground_truth: str,
     lo: int, hi: int, state: dict,
+    compaction_enabled: bool,
     existing_log: Optional[list] = None,
     checkpoint_path: Optional[Path] = None,
     checkpoint_data: Optional[dict] = None,
+    traces_dir: Optional[Path] = None,
 ) -> tuple:
     """
     Find the rough fail→pass transition zone using a single trial per N.
@@ -354,6 +450,7 @@ def _outer_binary_search(
     step = len(log)
     last_fail_lo = lo
     first_pass_hi = hi
+    label = "compact" if compaction_enabled else "nocompact"
 
     while True:
         mid = (lo + hi) // 2
@@ -364,17 +461,24 @@ def _outer_binary_search(
             break
 
         step += 1
-        print(f"  [outer step {step}] N={mid}  range=[{lo},{hi}]")
+        print(f"  [outer-{label} step {step}] N={mid}  range=[{lo},{hi}]")
         passed, trial_log = _test_n(
             client, problem_text, ground_truth, mid,
             n_trials=OUTER_CHECKS_PER_N, state=state,
+            compaction_enabled=compaction_enabled,
+            traces_dir=traces_dir,
         )
         log.append({"N": mid, "passed": passed, "trials": trial_log})
 
-        # Checkpoint after every step
         _write_checkpoint(
             checkpoint_path, checkpoint_data or {},
-            phase="outer", outer_log=log, inner_log=[], state=state,
+            phase=f"{'compact' if compaction_enabled else 'no_compact'}_outer",
+            no_compact_outer_log=(checkpoint_data or {}).get("no_compact_outer_log", []) if compaction_enabled else log,
+            no_compact_inner_log=(checkpoint_data or {}).get("no_compact_inner_log", []),
+            compact_outer_log=log if compaction_enabled else (checkpoint_data or {}).get("compact_outer_log", []),
+            compact_inner_log=(checkpoint_data or {}).get("compact_inner_log", []),
+            state=state,
+            extra={"n_while_unbounded": (checkpoint_data or {}).get("n_while_unbounded")},
         )
 
         if passed:
@@ -384,7 +488,7 @@ def _outer_binary_search(
             last_fail_lo = mid
             lo = mid
 
-    print(f"  [outer] transition zone: [{last_fail_lo}, {first_pass_hi}]")
+    print(f"  [outer-{label}] transition zone: [{last_fail_lo}, {first_pass_hi}]")
     return log, last_fail_lo, first_pass_hi
 
 
@@ -393,9 +497,11 @@ def _outer_binary_search(
 def _inner_binary_search(
     client, problem_text: str, ground_truth: str,
     lo: int, hi: int, state: dict,
+    compaction_enabled: bool,
     existing_log: Optional[list] = None,
     checkpoint_path: Optional[Path] = None,
     checkpoint_data: Optional[dict] = None,
+    traces_dir: Optional[Path] = None,
 ) -> tuple:
     """
     Refine the transition zone using 3 trials per N; require 2/3 to pass.
@@ -406,6 +512,7 @@ def _inner_binary_search(
     log = existing_log if existing_log else []
     step = len(log)
     n_reliable = hi  # conservative default
+    label = "compact" if compaction_enabled else "nocompact"
 
     while hi - lo > INNER_STOP_ABS:
         mid = (lo + hi) // 2
@@ -413,20 +520,28 @@ def _inner_binary_search(
             break
 
         step += 1
-        print(f"  [inner step {step}] N={mid}  range=[{lo},{hi}]")
+        print(f"  [inner-{label} step {step}] N={mid}  range=[{lo},{hi}]")
         passed, trial_log = _test_n(
             client, problem_text, ground_truth, mid,
             n_trials=INNER_CHECKS_PER_N, state=state,
             pass_threshold=INNER_PASS_THRESHOLD,
+            compaction_enabled=compaction_enabled,
+            traces_dir=traces_dir,
         )
         log.append({"N": mid, "passed": passed, "n_trials": INNER_CHECKS_PER_N, "trials": trial_log})
 
-        # Checkpoint after every step
         _write_checkpoint(
             checkpoint_path, checkpoint_data or {},
-            phase="inner", outer_log=(checkpoint_data or {}).get("outer_search_log", []),
-            inner_log=log, state=state,
-            extra={"inner_lo": lo, "inner_hi": hi},
+            phase=f"{'compact' if compaction_enabled else 'no_compact'}_inner",
+            no_compact_outer_log=(checkpoint_data or {}).get("no_compact_outer_log", []),
+            no_compact_inner_log=log if not compaction_enabled else (checkpoint_data or {}).get("no_compact_inner_log", []),
+            compact_outer_log=(checkpoint_data or {}).get("compact_outer_log", []),
+            compact_inner_log=log if compaction_enabled else (checkpoint_data or {}).get("compact_inner_log", []),
+            state=state,
+            extra={
+                "n_while_unbounded": (checkpoint_data or {}).get("n_while_unbounded"),
+                "inner_lo": lo, "inner_hi": hi,
+            },
         )
 
         if passed:
@@ -435,7 +550,7 @@ def _inner_binary_search(
         else:
             lo = mid
 
-    print(f"  [inner] n_reliable={n_reliable}")
+    print(f"  [inner-{label}] n_reliable={n_reliable}")
     return log, n_reliable
 
 
@@ -444,17 +559,24 @@ def _inner_binary_search(
 def _test_n(
     client, problem_text: str, ground_truth: str,
     N: int, n_trials: int, state: dict,
+    compaction_enabled: bool,
     pass_threshold: int = 1,
+    traces_dir: Optional[Path] = None,
 ) -> tuple:
     """
     Run n_trials trials at context window N in parallel.
     Returns (passed: bool, trial_log: list).
     passed = True if successes >= pass_threshold.
+    Saves each trial's full conversation trace to traces_dir if provided.
     """
     results = [None] * n_trials
+    label = "compact" if compaction_enabled else "nocompact"
 
     def _run_one(idx):
-        return _run_trial(client, problem_text, ground_truth, N, idx)
+        return _run_trial(
+            client, problem_text, ground_truth, N, idx,
+            compaction_enabled=compaction_enabled,
+        )
 
     with ThreadPoolExecutor(max_workers=n_trials) as pool:
         futures = {pool.submit(_run_one, i): i for i in range(n_trials)}
@@ -471,6 +593,14 @@ def _test_n(
             state["input_tokens"] += r.get("input_tokens", 0)
             state["output_tokens"] += r.get("output_tokens", 0)
 
+            # Save trace to disk
+            if traces_dir is not None:
+                trace_file = traces_dir / f"{label}_N{N}_trial{idx}.json"
+                try:
+                    trace_file.write_text(json.dumps(r, indent=2))
+                except Exception as e:
+                    print(f"    [trace] WARNING — failed to save trace: {e}")
+
     n_pass = sum(1 for r in results if r["success"])
     passed = n_pass >= pass_threshold
     print(f"    [{n_pass}/{n_trials} passed — {'PASS' if passed else 'FAIL'}]")
@@ -480,33 +610,40 @@ def _test_n(
 # ─── Single Trial ─────────────────────────────────────────────────────────────
 
 def _extract_final_answer_from_content(text: str):
-    """Extract answer from {final_answer: "ANSWER"} format, with \\boxed{} fallback."""
+    """Extract answer from {final_answer: "ANSWER"} format, with fallback."""
     if not text:
         return None
-    # Try {final_answer: "..."} format
     match = re.search(r'\{final_answer:\s*"([^"]+)"\}', text)
     if match:
         return match.group(1).strip()
-    # Fallback: \\boxed{} and other formats via utils
     return extract_final_answer(text)
 
 
 def _run_trial(
     client, problem_text: str, ground_truth: str,
     N: int, trial_idx: int,
+    compaction_enabled: bool = True,
 ) -> dict:
     """
-    Run one evaluation trial at context window N with the compaction loop.
+    Run one evaluation trial at context window N.
 
-    Compaction loop:
-      1. Generate response.
-      2. If final_answer found → success.
-      3. If tokens >= 50% of N → inject compaction prompt, get summary.
-      4. Reset conversation to: system + problem + summary (fresh context).
-      5. Count tokens of the reset prompt. If >= 50% of N → FAIL (compaction_insufficient).
-      6. Else continue from step 1.
-    No hard limit on compactions — only failure mode is when compaction
-    cannot shrink the context below 50% of N.
+    When compaction_enabled=False:
+        Single-shot: send prompt, get response, done.
+        No compaction loop. No context resets.
+        Used for n_reliable_no_compact measurement.
+
+    When compaction_enabled=True:
+        Full compaction loop:
+          1. Generate response.
+          2. If final_answer found → success.
+          3. If tokens >= 50% of N → inject compaction prompt, get summary.
+          4. Reset conversation to: system + problem + summary.
+          5. Probe reset cost. If >= 50% of N → FAIL (compaction_insufficient).
+          6. Else continue.
+
+    All calls use stream=False for exact token counts and llama-server timings.
+
+    Returns a dict that IS the trace file — full conversation log included.
     """
     t0 = time.time()
 
@@ -529,14 +666,102 @@ def _run_trial(
         {"role": "user", "content": problem_text},
     ]
 
+    # Full conversation log — becomes the trace file
+    conversation_log = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": problem_text},
+    ]
+
     n_compactions = 0
+    compaction_summaries = []
+    per_turn_tokens = []
+    all_timings = []
     total_input_tokens = 0
     total_output_tokens = 0
+    total_thinking_tokens = 0
     total_tokens_peak = 0
     answer = None
     finish_reason = "max_turns"
     error_msg = None
-    awaiting_compact = False  # True when we've injected the compaction prompt
+    content_snapshot = ""  # last assistant content, for token estimation fallback
+
+    # ── No-compaction path: single shot ──────────────────────────────────────
+    if not compaction_enabled:
+        turn_t0 = time.time()
+        try:
+            resp = client.generate(messages, max_tokens=N, stream=False)
+        except Exception as e:
+            error_msg = str(e)
+            finish_reason = "error"
+            wall_time = round(time.time() - t0, 2)
+            return _trial_result(
+                trial_idx, N, False, None, ground_truth,
+                finish_reason, 0, 0, 0, 0, 0,
+                [], [], [], conversation_log, wall_time, error_msg,
+                compaction_enabled=False,
+            )
+
+        turn_time = round(time.time() - turn_t0, 2)
+        content = resp.get("content", "") or ""
+        content_snapshot = content
+        raw_input = resp.get("input_tokens", 0)
+        raw_output = resp.get("output_tokens", 0)
+        raw_total = resp.get("total_tokens", 0)
+        thinking_tok = resp.get("thinking_tokens", 0)
+        timings = resp.get("timings", {})
+        fr = resp.get("finish_reason", "stop")
+
+        # Token estimation fallback if server returned 0 (should not happen with stream=False)
+        if raw_total == 0:
+            input_len = sum(len(m.get("content", "")) for m in messages)
+            raw_input = input_len // 4
+            raw_output = len(content) // 4
+            raw_total = raw_input + raw_output
+
+        total_input_tokens = raw_input
+        total_output_tokens = raw_output
+        total_thinking_tokens = thinking_tok
+        total_tokens_peak = raw_total
+        per_turn_tokens.append(raw_output)
+        all_timings.append(timings)
+
+        conversation_log.append({
+            "role": "assistant",
+            "content": content,
+            "input_tokens": raw_input,
+            "output_tokens": raw_output,
+            "thinking_tokens": thinking_tok,
+            "finish_reason": fr,
+            "wall_time_s": turn_time,
+            "timings": timings,
+        })
+
+        answer = _extract_final_answer_from_content(content)
+        finish_reason = "solved" if answer is not None else (fr if fr else "no_answer")
+
+        wall_time = round(time.time() - t0, 2)
+        return _trial_result(
+            trial_idx, N,
+            success=(answer is not None and str(answer).strip() == str(ground_truth).strip()),
+            answer=answer, ground_truth=ground_truth,
+            finish_reason=finish_reason,
+            total_input_tokens=total_input_tokens,
+            total_output_tokens=total_output_tokens,
+            total_thinking_tokens=total_thinking_tokens,
+            total_tokens_peak=total_tokens_peak,
+            n_compactions=0,
+            per_turn_tokens=per_turn_tokens,
+            compaction_summaries=[],
+            all_timings=all_timings,
+            conversation_log=conversation_log,
+            wall_time=wall_time,
+            error_msg=error_msg,
+            content_snapshot=content_snapshot,
+            compaction_enabled=False,
+        )
+
+    # ── Compaction-enabled path ───────────────────────────────────────────────
+    awaiting_compact = False
 
     for turn_i in range(MAX_TURNS):
         remaining = N - total_tokens_peak if total_tokens_peak > 0 else N
@@ -545,19 +770,49 @@ def _run_trial(
             break
 
         max_gen = min(remaining, 16384)
+        turn_t0 = time.time()
 
         try:
-            resp = client.generate(messages, max_tokens=max_gen)
+            resp = client.generate(messages, max_tokens=max_gen, stream=False)
         except Exception as e:
             error_msg = str(e)
             finish_reason = "error"
             break
 
+        turn_time = round(time.time() - turn_t0, 2)
         content = resp.get("content", "") or ""
-        resp_total = resp.get("total_tokens", 0)
-        total_tokens_peak = max(total_tokens_peak, resp_total)
-        total_input_tokens += resp.get("input_tokens", 0)
-        total_output_tokens += resp.get("output_tokens", 0)
+        content_snapshot = content
+        raw_input = resp.get("input_tokens", 0)
+        raw_output = resp.get("output_tokens", 0)
+        raw_total = resp.get("total_tokens", 0)
+        thinking_tok = resp.get("thinking_tokens", 0)
+        timings = resp.get("timings", {})
+        fr = resp.get("finish_reason", "stop")
+
+        # Token estimation fallback
+        if raw_total == 0:
+            input_len = sum(len(m.get("content", "")) for m in messages)
+            raw_input = input_len // 4
+            raw_output = len(content) // 4
+            raw_total = raw_input + raw_output
+
+        total_tokens_peak = max(total_tokens_peak, raw_total)
+        total_input_tokens += raw_input
+        total_output_tokens += raw_output
+        total_thinking_tokens += thinking_tok
+        per_turn_tokens.append(raw_output)
+        all_timings.append(timings)
+
+        conversation_log.append({
+            "role": "assistant",
+            "content": content,
+            "input_tokens": raw_input,
+            "output_tokens": raw_output,
+            "thinking_tokens": thinking_tok,
+            "finish_reason": fr,
+            "wall_time_s": turn_time,
+            "timings": timings,
+        })
 
         # ── Check for final answer ────────────────────────────────────────────
         answer = _extract_final_answer_from_content(content)
@@ -571,12 +826,17 @@ def _run_trial(
             if compact_match:
                 summary = compact_match.group(1).strip()
             else:
-                # Model didn't write <compact> tags — treat full response as summary
                 summary = content.strip()
 
             n_compactions += 1
+            compaction_summaries.append(summary)
 
-            # Build the reset conversation
+            conversation_log.append({
+                "role": "system",
+                "content": f"[COMPACTION #{n_compactions} — context reset]",
+                "summary": summary,
+            })
+
             reset_user = (
                 f"{problem_text}\n\n"
                 f"Your previous progress (from compact call):\n"
@@ -589,67 +849,130 @@ def _run_trial(
                 {"role": "user", "content": reset_user},
             ]
 
-            # Probe how many tokens the reset prompt costs
+            # Probe how many tokens the reset prompt costs (stream=False for exact count)
+            probe_t0 = time.time()
             try:
-                probe = client.generate(reset_messages, max_tokens=1)
+                probe = client.generate(reset_messages, max_tokens=1, stream=False)
                 reset_tokens = probe.get("total_tokens", 0)
+                if reset_tokens == 0:
+                    input_len = sum(len(m.get("content", "")) for m in reset_messages)
+                    reset_tokens = input_len // 4
                 total_input_tokens += probe.get("input_tokens", 0)
                 total_output_tokens += probe.get("output_tokens", 0)
             except Exception as e:
-                # Can't probe — estimate conservatively (fail safe)
-                reset_tokens = N  # treat as failure
+                reset_tokens = N  # conservative fail-safe
                 error_msg = f"probe error: {e}"
 
+            probe_time = round(time.time() - probe_t0, 2)
+            conversation_log.append({
+                "role": "system",
+                "content": f"[PROBE — reset context token count]",
+                "reset_tokens": reset_tokens,
+                "wall_time_s": probe_time,
+            })
+
             if reset_tokens >= N * COMPACTION_TRIGGER:
-                # Summary too large — compaction didn't help enough
                 finish_reason = "compaction_insufficient"
                 total_tokens_peak = max(total_tokens_peak, reset_tokens)
                 break
 
             # Compaction succeeded — reset context and continue
             messages = reset_messages
+            conversation_log.append({"role": "user", "content": reset_user})
             total_tokens_peak = reset_tokens
             awaiting_compact = False
             continue
 
         # ── Check if we've hit 50% — trigger compaction ───────────────────────
         if total_tokens_peak >= N * COMPACTION_TRIGGER:
-            messages.append({"role": "assistant", "content": content})
-            messages.append({"role": "user", "content": (
+            compaction_prompt = (
                 "You have reached 50% of your context window. "
                 "Please compact your context now by writing a condensed summary "
                 "of your work so far inside <compact>...</compact> tags. "
                 "Be as concise as possible — your summary must fit well under "
                 f"{int(N * COMPACTION_TRIGGER)} tokens."
-            )})
+            )
+            messages.append({"role": "assistant", "content": content})
+            messages.append({"role": "user", "content": compaction_prompt})
+            conversation_log.append({"role": "user", "content": compaction_prompt})
             awaiting_compact = True
             continue
 
-        # ── Model truncated without answering ─────────────────────────────────
-        if resp.get("finish_reason") in ("length", "truncated"):
+        # ── Truncated without answering ───────────────────────────────────────
+        if fr in ("length", "truncated"):
             finish_reason = "truncated"
             break
 
-        # ── Continue working ───────────────────────────────────────────────────
+        # ── Continue working ──────────────────────────────────────────────────
         messages.append({"role": "assistant", "content": content})
         messages.append({"role": "user", "content": "Continue solving."})
+        conversation_log.append({"role": "user", "content": "Continue solving."})
 
     wall_time = round(time.time() - t0, 2)
     success = answer is not None and str(answer).strip() == str(ground_truth).strip()
 
+    return _trial_result(
+        trial_idx, N, success, answer, ground_truth,
+        finish_reason=finish_reason,
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
+        total_thinking_tokens=total_thinking_tokens,
+        total_tokens_peak=total_tokens_peak,
+        n_compactions=n_compactions,
+        per_turn_tokens=per_turn_tokens,
+        compaction_summaries=compaction_summaries,
+        all_timings=all_timings,
+        conversation_log=conversation_log,
+        wall_time=wall_time,
+        error_msg=error_msg,
+        content_snapshot=content_snapshot,
+        compaction_enabled=True,
+    )
+
+
+def _trial_result(
+    trial_idx: int,
+    N: int,
+    success: bool,
+    answer,
+    ground_truth: str,
+    finish_reason: str,
+    total_input_tokens: int,
+    total_output_tokens: int,
+    total_thinking_tokens: int,
+    total_tokens_peak: int,
+    n_compactions: int,
+    per_turn_tokens: list,
+    compaction_summaries: list,
+    all_timings: list,
+    conversation_log: list,
+    wall_time: float,
+    error_msg: Optional[str],
+    content_snapshot: str = "",
+    compaction_enabled: bool = True,
+) -> dict:
+    """Build the standardized trial result / trace dict."""
     return {
         "trial_idx": trial_idx,
         "N": N,
+        "compaction_enabled": compaction_enabled,
         "success": success,
         "answer": answer,
         "expected": ground_truth,
         "finish_reason": finish_reason,
         "input_tokens": total_input_tokens,
         "output_tokens": total_output_tokens,
+        "thinking_tokens": total_thinking_tokens,
         "total_tokens": total_tokens_peak,
         "n_compactions": n_compactions,
+        "compaction_summaries": compaction_summaries,
+        "per_turn_tokens": per_turn_tokens,
+        "all_timings": all_timings,
+        "conversation_log": conversation_log,
+        "content_snapshot": content_snapshot,
         "wall_time_s": wall_time,
         "error": error_msg,
+        "cost_usd": 0.0,  # placeholder; priced per-model by caller if needed
     }
 
 
@@ -659,9 +982,12 @@ def _build_result(
     model_name: str,
     problem_id: str,
     n_while_unbounded,
-    n_reliable,
-    outer_log: list,
-    inner_log: list,
+    n_reliable_no_compact,
+    n_reliable_compact,
+    no_compact_outer_log: list,
+    no_compact_inner_log: list,
+    compact_outer_log: list,
+    compact_inner_log: list,
     search_range: list,
     api_calls: int,
     input_tokens: int,
@@ -677,9 +1003,12 @@ def _build_result(
         "problem_id": problem_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "n_while_unbounded": n_while_unbounded,
-        "n_reliable": n_reliable,
-        "outer_search_log": outer_log,
-        "inner_search_log": inner_log,
+        "n_reliable_no_compact": n_reliable_no_compact,
+        "n_reliable_compact": n_reliable_compact,
+        "no_compact_outer_log": no_compact_outer_log,
+        "no_compact_inner_log": no_compact_inner_log,
+        "compact_outer_log": compact_outer_log,
+        "compact_inner_log": compact_inner_log,
         "search_range_final": search_range,
         "total_api_calls": api_calls,
         "total_input_tokens": input_tokens,
