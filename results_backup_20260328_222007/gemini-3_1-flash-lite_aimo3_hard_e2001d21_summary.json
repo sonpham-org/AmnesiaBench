@@ -1,0 +1,28 @@
+[
+  {
+    "model_name": "gemini-3.1-flash-lite",
+    "problem_id": "aimo3_hard_e2001d21",
+    "config": "NoTIR_HardCut",
+    "minimum_window": null,
+    "search_range_final": [
+      512,
+      32768
+    ],
+    "steps": 1,
+    "n_reliable_prediction": null,
+    "success_prediction": true
+  },
+  {
+    "model_name": "gemini-3.1-flash-lite",
+    "problem_id": "aimo3_hard_e2001d21",
+    "config": "NoTIR_Compact",
+    "minimum_window": null,
+    "search_range_final": [
+      512,
+      32768
+    ],
+    "steps": 1,
+    "n_reliable_prediction": null,
+    "success_prediction": true
+  }
+]

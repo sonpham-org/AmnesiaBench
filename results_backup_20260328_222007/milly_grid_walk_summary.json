@@ -1,0 +1,22 @@
+[
+  {
+    "problem_id": "milly_grid_walk",
+    "config": "NoTIR_HardCut",
+    "minimum_window": 528,
+    "search_range_final": [
+      512,
+      528
+    ],
+    "steps": 4
+  },
+  {
+    "problem_id": "milly_grid_walk",
+    "config": "NoTIR_Compact",
+    "minimum_window": 528,
+    "search_range_final": [
+      512,
+      528
+    ],
+    "steps": 4
+  }
+]

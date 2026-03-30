@@ -1,0 +1,28 @@
+[
+  {
+    "model_name": "Qwen3.5-35B-A3B-Q4",
+    "problem_id": "aimo3_hard_271f3da5",
+    "config": "NoTIR_HardCut",
+    "minimum_window": null,
+    "search_range_final": [
+      512,
+      32768
+    ],
+    "steps": 1,
+    "n_reliable_prediction": 50,
+    "success_prediction": true
+  },
+  {
+    "model_name": "Qwen3.5-35B-A3B-Q4",
+    "problem_id": "aimo3_hard_271f3da5",
+    "config": "NoTIR_Compact",
+    "minimum_window": 11456,
+    "search_range_final": [
+      11008,
+      11456
+    ],
+    "steps": 8,
+    "n_reliable_prediction": 128,
+    "success_prediction": true
+  }
+]

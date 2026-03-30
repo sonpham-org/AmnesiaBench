@@ -1,0 +1,863 @@
+{
+  "problem_id": "handshakes_10",
+  "config": {
+    "tir": false,
+    "compaction": true,
+    "name": "NoTIR_Compact"
+  },
+  "binary_search": [
+    {
+      "window": 32768,
+      "trials": [
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 36.05,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes at a party with 10 people where each person shakes hands with every other person exactly once, we can use the concept of combinations.\n\n1.  **Identify the problem type**: This is a combination problem because the order of the handshake does not matter (a handshake between Person A and Person B is the same as between Person B and Person A). We are looking for the number of ways to choose 2 distinct people out of 10 to form a handshake.\n\n2.  **Formula**: The number of ways to choose $k$ items from a set of $n$ distinct items is given by the combination formula:\n    $$C(n, k) = \\binom{n}{k} = \\frac{n!}{k!(n-k)!}$$\n    Here, $n = 10$ (total people) and $k = 2$ (people involved in one handshake).\n\n3.  **Calculation**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!} $$\n    \n    Expand the factorial terms:\n    $$ \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    \n    Cancel out $8!$:\n    $$ \\frac{10 \\times 9}{2} $$\n    \n    Calculate the numerator:\n    $$ 10 \\times 9 = 90 $$\n    \n    Divide by the denominator:\n    $$ \\frac{90}{2} = 45 $$\n\n    **Alternative Method (Summation)**:\n    - The 1st person shakes hands with 9 others.\n    - The 2nd person shakes hands with the remaining 8 people (excluding the 1st, as that handshake is already counted).\n    - The 3rd person shakes hands with the remaining 7 people.\n    - ...\n    - The 9th person shakes hands with the 10th person (1 handshake).\n    - The 10th person has already shaken hands with everyone.\n    \n    Total handshakes = $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1$.\n    This is an arithmetic series sum: $\\frac{n(n+1)}{2}$ where $n=9$.\n    Sum = $\\frac{9 \\times 10}{2} = 45$.\n\nBoth methods yield the same result.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 33.58,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes among 10 people where each person shakes hands with every other person exactly once, we can use the concept of combinations.\n\nA handshake involves a pair of distinct people. Since the order in which two people shake hands does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A), this is a combination problem. We need to choose 2 people out of 10.\n\nThe formula for combinations is:\n$$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\nWhere:\n- $n$ is the total number of people (10).\n- $k$ is the number of people in each handshake (2).\n\nSubstituting the values:\n$$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\nCalculating the factorials:\n$$ 10! = 10 \\times 9 \\times 8! $$\n$$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n\nCancel out $8!$:\n$$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n$$ \\binom{10}{2} = \\frac{90}{2} $$\n$$ \\binom{10}{2} = 45 $$\n\nAlternatively, we can think of it this way:\n- The 1st person shakes hands with 9 other people.\n- The 2nd person shakes hands with the remaining 8 people (since they already shook hands with the 1st).\n- The 3rd person shakes hands with the remaining 7 people.\n- ...\n- The 9th person shakes hands with the 10th person (1 handshake).\n- The 10th person has already shaken hands with everyone.\n\nSumming these up:\n$$ 9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45 $$\n\nBoth methods yield the same result.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 32.27,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes at a party with 10 people where each person shakes hands with every other person exactly once, we can model this as a combination problem.\n\n1.  **Identify the problem type**: We need to select 2 people out of 10 to form a handshake. The order in which we select the two people does not matter (shaking hands between Person A and Person B is the same event as between Person B and Person A).\n\n2.  **Use the combination formula**: The number of ways to choose $k$ items from a set of $n$ distinct items is given by the formula:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n    Here, $n = 10$ (total people) and $k = 2$ (people involved in one handshake).\n\n3.  **Calculate the value**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} = 45 $$\n\nAlternatively, you can think of it as:\n- The first person shakes hands with 9 other people.\n- The second person shakes hands with 8 other people (excluding the first person, as that handshake is already counted).\n- The third person shakes hands with 7 other people.\n- ...\n- The ninth person shakes hands with 1 other person.\n- The tenth person has already shaken hands with everyone.\n\nSumming these up: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    },
+    {
+      "window": 4032,
+      "trials": [
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 4032,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 41.66,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 4032 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 4032 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes at a party with 10 people where each person shakes hands with every other person exactly once, we can use the following logic:\n\n1.  **Identify the nature of the problem**: This is a combination problem. We need to select 2 people out of 10 to form a handshake. The order in which the two people are selected does not matter (handshake between A and B is the same as B and A).\n\n2.  **Formula**: The number of ways to choose $k$ items from a set of $n$ distinct items is given by the binomial coefficient \"n choose k\", denoted as $\\binom{n}{k}$ or $C(n, k)$.\n    The formula is:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\n3.  **Apply the values**:\n    *   $n = 10$ (total number of people)\n    *   $k = 2$ (since a handshake involves 2 people)\n\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\n4.  **Calculate**:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} = 45 $$\n\n**Alternative Method (Summation)**:\n*   The 1st person shakes hands with 9 other people.\n*   The 2nd person shakes hands with 8 other people (excluding the 1st person, as that handshake is already counted).\n*   The 3rd person shakes hands with 7 other people.\n*   ...\n*   The 9th person shakes hands with 1 other person.\n*   The 10th person has already shaken hands with everyone.\n\nTotal handshakes = $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1$.\nThis is the sum of the first 9 integers:\n$$ \\text{Sum} = \\frac{n(n+1)}{2} \\text{ where } n=9 $$\n$$ \\text{Sum} = \\frac{9 \\times 10}{2} = 45 $$\n\nBoth methods yield the same result.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 4032,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 35.01,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 4032 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 4032 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this problem using combinations.\n\n1.  **Identify the parameters**:\n    *   There are $n = 10$ people at the party.\n    *   Each person shakes hands with every other person exactly once.\n    *   A handshake involves exactly 2 distinct people.\n\n2.  **Determine the mathematical approach**:\n    *   Since the order of the handshake does not matter (shaking hands with Person A is the same as Person A shaking hands with you), this is a combination problem.\n    *   We need to find the number of ways to choose 2 people out of 10. This is denoted as $\\binom{n}{2}$ or $C(n, 2)$.\n\n3.  **Apply the formula**:\n    The formula for combinations is:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n    Here, $n = 10$ and $k = 2$.\n\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!} $$\n\n4.  **Calculate the value**:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    Cancel out $8!$:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} $$\n    $$ \\binom{10}{2} = 45 $$\n\n    Alternatively, using the handshake logic:\n    *   Each of the 10 people shakes hands with 9 other people.\n    *   This gives $10 \\times 9 = 90$ handshakes if we count each handshake twice (once for each participant).\n    *   To get the unique number of handshakes, divide by 2: $90 / 2 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 4032,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 41.84,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 4032 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 4032 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes at a party with 10 people where each person shakes hands with every other person exactly once, we can model this as a combination problem.\n\n1.  **Identify the parameters**:\n    *   Number of people ($n$) = 10.\n    *   A handshake involves exactly 2 distinct people.\n    *   The order of the handshake does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n    *   No one shakes hands with themselves.\n\n2.  **Formulate the calculation**:\n    We need to choose 2 people out of the 10 to form a unique pair. This is calculated using the combination formula \"n choose k\", denoted as $C(n, k)$ or $\\binom{n}{k}$:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n    Here, $n = 10$ and $k = 2$.\n\n3.  **Perform the calculation**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!} $$\n    \n    Expand the factorial terms:\n    $$ 10! = 10 \\times 9 \\times 8! $$\n    \n    Substitute back into the equation:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    \n    Cancel out $8!$:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} $$\n    $$ \\binom{10}{2} = 45 $$\n\n    **Alternative Method (Summation)**:\n    The first person shakes hands with 9 others.\n    The second person shakes hands with 8 remaining people (since the handshake with the first person is already counted).\n    The third person shakes hands with 7 remaining people.\n    ...\n    The ninth person shakes hands with 1 remaining person.\n    The tenth person has already shaken hands with everyone.\n    \n    Total = $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1$.\n    Sum of integers from 1 to 9:\n    $$ \\frac{9 \\times 10}{2} = 45 $$\n\nBoth methods yield the same result.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    },
+    {
+      "window": 1408,
+      "trials": [
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 1408,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 26.11,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 1408 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 1408 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this as a combination problem where we need to choose 2 people out of 10 to form a handshake. The order in which the two people are chosen does not matter (a handshake between Person A and Person B is the same as a handshake between Person B and Person A).\n\nThe formula for combinations is:\n$$ C(n, k) = \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\nHere:\n- $n = 10$ (total number of people)\n- $k = 2$ (number of people involved in each handshake)\n\nSubstituting the values into the formula:\n$$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\nWe can simplify the factorial expression:\n$$ \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} = \\frac{10 \\times 9}{2} $$\n\nCalculate the numerator:\n$$ 10 \\times 9 = 90 $$\n\nDivide by the denominator:\n$$ \\frac{90}{2} = 45 $$\n\nAlternatively, we can think of it this way:\nEach of the 10 people shakes hands with 9 other people. This gives $10 \\times 9 = 90$ potential handshakes. However, this counts every handshake twice (once for each participant). Therefore, we must divide by 2:\n$$ \\frac{90}{2} = 45 $$\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 1408,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 28.03,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 1408 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 1408 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this problem using combinations.\n\n1.  **Identify the parameters**:\n    *   Number of people ($n$) = 10.\n    *   Each person shakes hands with every other person exactly once.\n    *   A handshake involves exactly 2 distinct people.\n    *   The order of people in a handshake does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n\n2.  **Determine the formula**:\n    The number of ways to choose 2 people out of $n$ to form a handshake is given by the combination formula $\\binom{n}{2}$:\n    $$ \\binom{n}{2} = \\frac{n(n-1)}{2} $$\n\n3.  **Substitute the values**:\n    $$ \\binom{10}{2} = \\frac{10 \\times (10-1)}{2} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} $$\n    $$ \\binom{10}{2} = 45 $$\n\nAlternatively, we can think of it as:\n*   The first person shakes hands with 9 others.\n*   The second person shakes hands with 8 others (excluding the first person, as that handshake is already counted).\n*   The third person shakes hands with 7 others.\n*   ...\n*   The ninth person shakes hands with 1 other person.\n*   The tenth person has already shaken hands with everyone.\n\nSum: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 1408,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 31.69,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 1408 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 1408 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this problem using combinatorics.\n\n1.  **Identify the problem type**: We have a set of $n$ people, and we need to determine the number of unique pairs that can be formed from this set. Since a handshake involves exactly 2 people and the order does not matter (shaking hands with Person A is the same as shaking hands with Person A), this is a combination problem.\n\n2.  **Define the variables**:\n    *   $n = 10$ (the number of people).\n    *   $k = 2$ (since a handshake involves 2 people).\n\n3.  **Apply the combination formula**:\n    The number of ways to choose $k$ items from a set of $n$ distinct items is given by the formula:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\n4.  **Substitute the values**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!} $$\n\n5.  **Calculate the factorials**:\n    $$ 10! = 10 \\times 9 \\times 8! $$\n    So,\n    $$ \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n\n6.  **Simplify**:\n    Cancel out $8!$ from the numerator and denominator:\n    $$ \\frac{10 \\times 9}{2} = \\frac{90}{2} = 45 $$\n\n**Alternative Method (Summation)**:\n*   The 1st person shakes hands with 9 other people.\n*   The 2nd person shakes hands with 8 remaining people (excluding the 1st).\n*   The 3rd person shakes hands with 7 remaining people.\n*   ...\n*   The 9th person shakes hands with 1 remaining person.\n*   The 10th person has already shaken hands with everyone.\n*   Total = $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nBoth methods yield the same result.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    },
+    {
+      "window": 832,
+      "trials": [
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 832,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 28.41,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 832 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 832 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this as a combination problem.\n\n1.  **Identify the parameters**:\n    *   Number of people ($n$) = 10.\n    *   A handshake involves exactly 2 distinct people.\n    *   Each pair shakes hands exactly once.\n\n2.  **Determine the formula**:\n    The number of ways to choose 2 people out of 10 to form a handshake is given by the combination formula \"n choose k\", denoted as $C(n, k)$ or $\\binom{n}{k}$, where $k=2$.\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\n3.  **Substitute the values**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\n4.  **Calculate**:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} = 45 $$\n\nAlternatively, using the sum of integers method:\nThe first person shakes hands with 9 others.\nThe second person shakes hands with 8 remaining people (already shook with the first).\nThe third person shakes hands with 7 remaining people.\n...\nThe ninth person shakes hands with 1 remaining person.\nThe tenth person has already shaken hands with everyone.\n\nTotal = $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 832,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 30.57,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 832 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 832 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes among 10 people where each person shakes hands with every other person exactly once, we can use the combination formula.\n\nThis problem is equivalent to choosing 2 people out of 10 to form a handshake. The order in which the pair is chosen does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n\nThe formula for combinations is:\n$$C(n, k) = \\frac{n!}{k!(n-k)!}$$\n\nWhere:\n- $n$ is the total number of people (10).\n- $k$ is the number of people involved in each handshake (2).\n\nSubstituting the values:\n$$C(10, 2) = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!}$$\n\nWe can expand the factorial:\n$$10! = 10 \\times 9 \\times 8!$$\n\nSo the equation becomes:\n$$C(10, 2) = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!}$$\n\nCancel out $8!$:\n$$C(10, 2) = \\frac{10 \\times 9}{2}$$\n$$C(10, 2) = \\frac{90}{2}$$\n$$C(10, 2) = 45$$\n\nAlternatively, we can think of it as:\n- The 1st person shakes hands with 9 others.\n- The 2nd person shakes hands with 8 remaining people (since they already shook hands with the 1st).\n- The 3rd person shakes hands with 7 remaining people.\n- ...\n- The 9th person shakes hands with 1 remaining person.\n- The 10th person has already shaken hands with everyone.\n\nSum: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 832,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 26.22,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 832 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 832 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this as a combination problem. We have a group of $n = 10$ people, and we want to find the number of unique pairs of people who shake hands. Since the order of the pair does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A), we use the formula for combinations:\n\n$$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\nHere, $n = 10$ (total people) and $k = 2$ (since a handshake involves 2 people).\n\n$$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\nWe can simplify the factorial expression:\n$$ \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n\nCancel out $8!$:\n$$ \\frac{10 \\times 9}{2} $$\n\nCalculate the numerator:\n$$ 10 \\times 9 = 90 $$\n\nDivide by 2:\n$$ \\frac{90}{2} = 45 $$\n\nAlternatively, using the sum formula for handshakes where the $n$-th person shakes hands with $n-1$ people, but avoiding double counting, the total is the sum of integers from 1 to $n-1$:\n$$ 9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45 $$\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    },
+    {
+      "window": 640,
+      "trials": [
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 36.78,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this as a combination problem.\n\n1.  **Identify the parameters**:\n    *   Number of people ($n$) = 10.\n    *   Each person shakes hands with every other person exactly once.\n    *   A handshake involves 2 distinct people.\n\n2.  **Determine the mathematical approach**:\n    *   We need to choose 2 people out of 10 to form a handshake.\n    *   The order of selection does not matter (shaking hands between Person A and Person B is the same as Person B and Person A).\n    *   Therefore, we calculate the number of combinations of 10 items taken 2 at a time, denoted as $C(n, k)$ or $\\binom{n}{k}$.\n\n3.  **Apply the formula**:\n    The formula for combinations is:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n    Here, $n = 10$ and $k = 2$.\n\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!} $$\n\n4.  **Calculate the value**:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    Cancel out $8!$:\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} $$\n    $$ \\binom{10}{2} = 45 $$\n\n**Alternative Method (Summation)**:\n*   The 1st person shakes hands with 9 others.\n*   The 2nd person shakes hands with 8 others (excluding the 1st, already counted).\n*   The 3rd person shakes hands with 7 others.\n*   ...\n*   The 9th person shakes hands with 1 other (the 10th).\n*   The 10th person has already shaken hands with everyone.\n\nSum: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nBoth methods yield 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 33.42,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes, we can model this as a combination problem where we need to choose 2 people out of 10 to form a handshake. The order in which the pair is chosen does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n\nThe formula for combinations is:\n$$C(n, k) = \\binom{n}{k} = \\frac{n!}{k!(n-k)!}$$\n\nHere:\n- $n = 10$ (total number of people)\n- $k = 2$ (number of people involved in each handshake)\n\nSubstituting the values:\n$$C(10, 2) = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2! \\cdot 8!}$$\n\nExpanding the factorial:\n$$10! = 10 \\times 9 \\times 8!$$\n\nSo the equation becomes:\n$$C(10, 2) = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!}$$\n\nCancel out $8!$:\n$$C(10, 2) = \\frac{10 \\times 9}{2}$$\n$$C(10, 2) = \\frac{90}{2} = 45$$\n\nAlternatively, we can think of it as:\n- The 1st person shakes hands with 9 other people.\n- The 2nd person shakes hands with 8 other people (excluding the 1st person, as that handshake is already counted).\n- The 3rd person shakes hands with 7 other people.\n- ...\n- The 9th person shakes hands with 1 other person.\n- The 10th person has already shaken hands with everyone.\n\nSum: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "handshakes_10",
+          "correct_answer": 45,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 45,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 33.79,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "At a party with 10 people, each person shakes hands with every other person exactly once. What is the total number of handshakes?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the total number of handshakes at a party with 10 people where each person shakes hands with every other person exactly once, we can use the combination formula.\n\n1.  **Identify the problem type**: We need to choose 2 distinct people out of 10 to form a handshake. The order in which the two people are chosen does not matter (Person A shaking hands with Person B is the same as Person B shaking hands with Person A).\n\n2.  **Apply the combination formula**: The number of ways to choose $k$ items from a set of $n$ distinct items is given by:\n    $$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n    Here, $n = 10$ (total people) and $k = 2$ (people involved in one handshake).\n\n3.  **Calculate**:\n    $$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\times 8!} $$\n    $$ \\binom{10}{2} = \\frac{10 \\times 9}{2} $$\n    $$ \\binom{10}{2} = \\frac{90}{2} = 45 $$\n\nAlternatively, using the logic of summing the handshakes:\n- The 1st person shakes hands with 9 others.\n- The 2nd person shakes hands with 8 others (excluding the 1st person already counted).\n- The 3rd person shakes hands with 7 others.\n- ...\n- The 9th person shakes hands with 1 other.\n- The 10th person has already shaken hands with everyone.\nSum: $9 + 8 + 7 + 6 + 5 + 4 + 3 + 2 + 1 = 45$.\n\nThe total number of handshakes is 45.\n\n\\boxed{45}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    }
+  ],
+  "minimum_window": 640,
+  "search_range_final": [
+    512,
+    640
+  ],
+  "timestamp": "2026-03-28T12:58:26.021317+00:00",
+  "model_name": "Qwen3.5-35B-A3B-Q4",
+  "prediction": {
+    "success_prediction": true,
+    "n_reliable_prediction": 50,
+    "compaction_prompt": "Preserve the problem statement about 10 people shaking hands and the combinatorial formula for calculating total unique pairs.",
+    "raw_response": "<success_prediction>True</success_prediction>\n<n_reliable_prediction>50</n_reliable_prediction>\n<compaction_prompt>Preserve the problem statement about 10 people shaking hands and the combinatorial formula for calculating total unique pairs.</compaction_prompt>\n\n**Solution:**\n\nThis problem asks for the number of unique pairs that can be formed from 10 distinct people, as each handshake involves exactly two people and order does not matter (A shaking B is the same as B shaking A).\n\nWe can solve this using the combination formula \"n choose k\", denoted as $C(n, k)$ or $\\binom{n}{k}$, where $n$ is the total number of items and $k$ is the number of items to choose at a time.\n\nHere:\n- $n = 10$ (people)\n- $k = 2$ (since a handshake is between 2 people)\n\nThe formula is:\n$$ \\binom{n}{k} = \\frac{n!}{k!(n-k)!} $$\n\nSubstituting the values:\n$$ \\binom{10}{2} = \\frac{10!}{2!(10-2)!} = \\frac{10!}{2!8!} $$\n\nExpanding the factorial:\n$$ \\frac{10 \\times 9 \\times 8!}{2 \\times 1 \\"
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "problem_id": "modular_power_2_1000",
+  "config": {
+    "tir": false,
+    "compaction": true,
+    "name": "NoTIR_Compact"
+  },
+  "binary_search": [
+    {
+      "window": 640,
+      "trials": [
+        {
+          "problem_id": "modular_power_2_1000",
+          "correct_answer": 3,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 3,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 254.09,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the remainder when $2^{1000}$ is divided by 13. Give your answer as an integer from 0 to 12.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the remainder when $2^{1000}$ is divided by 13, we can use Fermat's Little Theorem.\n\n**Step 1: Apply Fermat's Little Theorem**\nFermat's Little Theorem states that if $p$ is a prime number and $a$ is an integer not divisible by $p$, then:\n$$a^{p-1} \\equiv 1 \\pmod{p}$$\n\nHere, $a = 2$ and $p = 13$. Since 13 is prime and 2 is not divisible by 13:\n$$2^{13-1} \\equiv 1 \\pmod{13}$$\n$$2^{12} \\equiv 1 \\pmod{13}$$\n\n**Step 2: Reduce the exponent**\nWe need to calculate $2^{1000} \\pmod{13}$.\nSince $2^{12} \\equiv 1 \\pmod{13}$, we can express the exponent 1000 in terms of multiples of 12.\nWe divide 1000 by 12:\n$$1000 = 12 \\times 83 + 4$$\nSo, $1000 \\equiv 4 \\pmod{12}$.\n\n**Step 3: Simplify the expression**\nSubstitute the reduced exponent back into the expression:\n$$2^{1000} = 2^{12 \\times 83 + 4} = (2^{12})^{83} \\cdot 2^4$$\nUsing the property $2^{12} \\equiv 1 \\pmod{13}$:\n$$(1)^{83} \\cdot 2^4 \\equiv 1 \\cdot 2^4 \\equiv 2^4 \\pmod{13}$$\n\n**Step 4: Calculate the final value**\nNow, calculate $2^4$:\n$$2^4 = 16$$\nFind $16 \\pmod{13}$:\n$$16 = 13 \\times 1 + 3$$\n$$16 \\equiv 3 \\pmod{13}$$\n\nThus, the remainder when $2^{1000}$ is divided by 13 is 3.\n\n\\boxed{3}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "modular_power_2_1000",
+          "correct_answer": 3,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 3,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 299.65,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the remainder when $2^{1000}$ is divided by 13. Give your answer as an integer from 0 to 12.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the remainder when $2^{1000}$ is divided by 13, we can use properties of modular arithmetic, specifically Fermat's Little Theorem.\n\n**Step 1: Apply Fermat's Little Theorem**\nFermat's Little Theorem states that if $p$ is a prime number and $a$ is an integer not divisible by $p$, then:\n$$a^{p-1} \\equiv 1 \\pmod{p}$$\n\nIn this problem:\n- $a = 2$\n- $p = 13$ (which is a prime number)\n\nAccording to the theorem:\n$$2^{13-1} \\equiv 1 \\pmod{13}$$\n$$2^{12} \\equiv 1 \\pmod{13}$$\n\n**Step 2: Reduce the exponent modulo 12**\nWe need to calculate $2^{1000} \\pmod{13}$. Since $2^{12} \\equiv 1 \\pmod{13}$, we can express the exponent 1000 in terms of multiples of 12.\nWe perform the division $1000 \\div 12$:\n$$1000 = 12 \\times 83 + 4$$\nSo, the remainder when 1000 is divided by 12 is 4.\n\n**Step 3: Simplify the expression**\nUsing the property $a^{nq+r} = (a^n)^q \\cdot a^r$, we can write:\n$$2^{1000} = 2^{12 \\times 83 + 4} = (2^{12})^{83} \\cdot 2^4$$\n\nSubstituting $2^{12} \\equiv 1 \\pmod{13}$:\n$$2^{1000} \\equiv (1)^{83} \\cdot 2^4 \\pmod{13}$$\n$$2^{1000} \\equiv 1 \\cdot 2^4 \\pmod{13}$$\n$$2^{1000} \\equiv 16 \\pmod{13}$$\n\n**Step 4: Calculate the final remainder**\nNow, we find the remainder of 16 divided by 13:\n$$16 = 13 \\times 1 + 3$$\n$$16 \\equiv 3 \\pmod{13}$$\n\nThus, the remainder when $2^{1000}$ is divided by 13 is 3.\n\n\\boxed{3}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "modular_power_2_1000",
+          "correct_answer": 3,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 3,
+          "total_tokens_peak": 0,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 296.53,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the remainder when $2^{1000}$ is divided by 13. Give your answer as an integer from 0 to 12.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the remainder when $2^{1000}$ is divided by 13, we can use properties of modular arithmetic, specifically Fermat's Little Theorem.\n\n**Step 1: Apply Fermat's Little Theorem**\nFermat's Little Theorem states that if $p$ is a prime number and $a$ is an integer not divisible by $p$, then:\n$$a^{p-1} \\equiv 1 \\pmod{p}$$\n\nHere, $a = 2$ and $p = 13$. Since 13 is a prime number and 2 is not divisible by 13, the theorem applies:\n$$2^{13-1} \\equiv 1 \\pmod{13}$$\n$$2^{12} \\equiv 1 \\pmod{13}$$\n\n**Step 2: Simplify the exponent**\nWe need to calculate $2^{1000} \\pmod{13}$.\nWe can express the exponent 1000 in terms of the cycle length 12. We perform the division $1000 \\div 12$:\n$$1000 = 12 \\times 83 + 4$$\nSo, $1000 \\equiv 4 \\pmod{12}$.\n\n**Step 3: Calculate the remainder**\nUsing the property $a^{qn+r} \\equiv (a^{p-1})^q \\cdot a^r \\equiv 1^q \\cdot a^r \\equiv a^r \\pmod{p}$:\n$$2^{1000} = 2^{12 \\times 83 + 4} = (2^{12})^{83} \\cdot 2^4$$\nSince $2^{12} \\equiv 1 \\pmod{13}$:\n$$2^{1000} \\equiv 1^{83} \\cdot 2^4 \\pmod{13}$$\n$$2^{1000} \\equiv 1 \\cdot 2^4 \\pmod{13}$$\n$$2^{1000} \\equiv 16 \\pmod{13}$$\n\n**Step 4: Final reduction**\nNow, reduce 16 modulo 13:\n$$16 = 13 \\times 1 + 3$$\n$$16 \\equiv 3 \\pmod{13}$$\n\nThus, the remainder is 3.\n\n\\boxed{3}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    }
+  ],
+  "minimum_window": 640,
+  "search_range_final": [
+    1,
+    640
+  ],
+  "timestamp": "2026-03-28T18:31:38.214903+00:00",
+  "model_name": "Qwen3.5-35B-A3B-Q4",
+  "prediction": {
+    "success_prediction": true,
+    "n_reliable_prediction": 50,
+    "compaction_prompt": "Preserve the application of Fermat's Little Theorem and the calculation of $2^{1000} \\pmod{13}$.",
+    "raw_response": "<success_prediction>True</success_prediction>\n<n_reliable_prediction>50</n_reliable_prediction>\n<compaction_prompt>Preserve the application of Fermat's Little Theorem and the calculation of $2^{1000} \\pmod{13}$.</compaction_prompt>\n\nTo find the remainder when $2^{1000}$ is divided by 13, we use Fermat's Little Theorem. Since 13 is a prime number and 2 is not divisible by 13, the theorem states:\n$$2^{13-1} \\equiv 1 \\pmod{13}$$\n$$2^{12} \\equiv 1 \\pmod{13}$$\n\nWe need to express the exponent 1000 in terms of multiples of 12:\n$$1000 = 12 \\times 83 + 4$$\n\nThus:\n$$2^{1000} = 2^{12 \\times 83 + 4} = (2^{12})^{83} \\cdot 2^4$$\n\nSubstituting $2^{12} \\equiv 1 \\pmod{13}$:\n$$2^{1000} \\equiv (1)^{83} \\cdot 2^4 \\pmod{13}$$\n$$2^{"
+  }
+}

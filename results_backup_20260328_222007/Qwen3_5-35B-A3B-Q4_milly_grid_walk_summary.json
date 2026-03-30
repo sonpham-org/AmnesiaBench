@@ -1,0 +1,28 @@
+[
+  {
+    "model_name": "Qwen3.5-35B-A3B-Q4",
+    "problem_id": "milly_grid_walk",
+    "config": "NoTIR_HardCut",
+    "minimum_window": 640,
+    "search_range_final": [
+      1,
+      640
+    ],
+    "steps": 1,
+    "n_reliable_prediction": 50,
+    "success_prediction": true
+  },
+  {
+    "model_name": "Qwen3.5-35B-A3B-Q4",
+    "problem_id": "milly_grid_walk",
+    "config": "NoTIR_Compact",
+    "minimum_window": 640,
+    "search_range_final": [
+      1,
+      640
+    ],
+    "steps": 1,
+    "n_reliable_prediction": 150,
+    "success_prediction": true
+  }
+]

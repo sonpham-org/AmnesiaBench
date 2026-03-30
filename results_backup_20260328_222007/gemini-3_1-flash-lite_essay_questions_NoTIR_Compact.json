@@ -1,0 +1,191 @@
+{
+  "problem_id": "essay_questions",
+  "config": {
+    "tir": false,
+    "compaction": true,
+    "name": "NoTIR_Compact"
+  },
+  "binary_search": [
+    {
+      "window": 32768,
+      "trials": [
+        {
+          "problem_id": "essay_questions",
+          "correct_answer": 5,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": false,
+          "answer": 6,
+          "total_tokens_peak": 711,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 4.9,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Four of six possible essay questions will be on the exam. If two questions are in part A and two questions are in part B, and one question must be chosen from both part A and part B, how many essay questions must be studied for?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To determine how many essay questions must be studied, we need to ensure that the student is prepared for any possible combination of the four questions that might appear on the exam, given the constraints.\n\n1. **Analyze the structure:**\n   - There are 6 total questions.\n   - The exam consists of 4 questions chosen from these 6.\n   - The questions are categorized into Part A (2 questions) and Part B (2 questions). Let's denote the questions as $A_1, A_2$ (Part A), $B_1, B_2$ (Part B), and $C_1, C_2$ (Others/Neutral).\n\n2. **Understand the constraint:**\n   - The problem states: \"Four of six possible essay questions will be on the exam.\"\n   - The problem also states: \"If two questions are in part A and two questions are in part B, and one question must be chosen from both part A and part B...\" \n   - This suggests that the 4 questions on the exam will always include at least one from Part A and at least one from Part B.\n\n3. **Determine the selection requirement:**\n   - If the student wants to be guaranteed to be able to answer the required questions (one from Part A and one from Part B), they must study enough questions such that no matter which 4 questions are selected for the exam, they are prepared.\n   - However, the wording \"how many essay questions must be studied\" in this context usually refers to the total set of questions available or a subset that guarantees coverage.\n   - If there are 6 possible questions in total, and the student must be prepared for the exam consisting of 4 of them, they must study all 6 questions to guarantee they can answer the specific requirements regardless of which 4 appear.\n\n4. **Re-evaluating the logic:**\n   - If the student studies 5 questions, there is 1 question they did not study. If that unstudied question is one of the 4 that appears on the exam, they might be forced into a position where they cannot answer the required questions if the other 3 questions on the exam are also problematic or if the specific required questions are the ones they didn't study.\n   - To be absolutely certain of being able to answer the exam regardless of which 4 of the 6 questions are selected, the student must study all 6.\n\nFinal Answer: \\boxed{6}",
+              "tokens": 519,
+              "prompt_tokens": 192,
+              "total_tokens": 711,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "essay_questions",
+          "correct_answer": 5,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": false,
+          "answer": 4,
+          "total_tokens_peak": 683,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 3.55,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Four of six possible essay questions will be on the exam. If two questions are in part A and two questions are in part B, and one question must be chosen from both part A and part B, how many essay questions must be studied for?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To solve this problem, we need to clarify the constraints. \n\nThere are 6 possible essay questions in total.\n- Part A: 2 questions\n- Part B: 2 questions\n- Remaining: 2 questions (let's call this Part C)\n\nWe are told that 4 questions will appear on the exam. We are also told that the exam requires choosing one question from Part A and one from Part B. This implies that for the exam to be \"covered,\" the student must be prepared for the questions that appear on the exam.\n\nHowever, the phrasing \"how many essay questions must be studied for\" in this context usually refers to the minimum number of questions one must study to guarantee they can fulfill the exam requirements (choosing one from A and one from B) regardless of which 4 of the 6 questions appear on the exam.\n\n1.  **Analyze the selection:** 4 questions are chosen from the 6.\n2.  **Constraint:** The exam *must* contain at least one question from Part A and at least one from Part B. If the 4 selected questions did not include any from Part A or Part B, the exam would be impossible to complete under the rules.\n3.  **Guaranteeing success:** To ensure we can always pick one from A and one from B, we must consider the worst-case scenario.\n    *   Suppose the 4 questions on the exam are chosen such that they include the fewest possible questions from A and B.\n    *   If we study all questions in Part A (2) and all questions in Part B (2), we have studied 4 questions.\n    *   If the exam contains at least one from A and at least one from B, and we have studied all of A and all of B, we are guaranteed to be able to answer those specific requirements regardless of which other questions are on the exam.\n\nIf we only studied 3 questions, say 2 from A and 1 from B, and the exam selected the other question from B, we might be unable to answer. By studying all questions in the parts that are mandatory for the exam selection (Part A and Part B), we cover all contingencies for those specific requirements.\n\nThus, we must study the 2 questions in Part A and the 2 questions in Part B.\n\n\\boxed{4}",
+              "tokens": 491,
+              "prompt_tokens": 192,
+              "total_tokens": 683,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "essay_questions",
+          "correct_answer": 5,
+          "token_limit": 32768,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": false,
+          "answer": 4,
+          "total_tokens_peak": 856,
+          "n_turns": 1,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 3.54,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 32768 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 32768 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Four of six possible essay questions will be on the exam. If two questions are in part A and two questions are in part B, and one question must be chosen from both part A and part B, how many essay questions must be studied for?",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To determine how many questions must be studied, we must ensure that the student is prepared for any possible combination of questions that could appear on the exam under the given constraints.\n\n1.  **Identify the structure:**\n    *   Total questions available: 6.\n    *   Questions in Part A: 2 (let's call them $A_1, A_2$).\n    *   Questions in Part B: 2 (let's call them $B_1, B_2$).\n    *   Remaining questions: 2 (let's call them $C_1, C_2$).\n    *   Total questions on the exam: 4.\n    *   Constraint: The 4 questions on the exam must include at least one from Part A and at least one from Part B.\n\n2.  **Analyze the selection process:**\n    A set of 4 questions is chosen from the 6. For this set to be valid, it must contain at least one from $\\{A_1, A_2\\}$ and at least one from $\\{B_1, B_2\\}$.\n    The total number of ways to choose 4 questions from 6 is $\\binom{6}{4} = 15$.\n    The invalid sets are those that contain:\n    *   No questions from Part A: This would mean choosing 4 questions from the remaining 4 ($B_1, B_2, C_1, C_2$). There is $\\binom{4}{4} = 1$ such set.\n    *   No questions from Part B: This would mean choosing 4 questions from the remaining 4 ($A_1, A_2, C_1, C_2$). There is $\\binom{4}{4} = 1$ such set.\n    *   Note: It is impossible to have no questions from Part A AND no questions from Part B simultaneously, because that would require choosing 4 questions from the 2 remaining questions ($C_1, C_2$), which is impossible.\n\n    So, there are $15 - 1 - 1 = 13$ possible exam papers.\n\n3.  **Determine the study requirement:**\n    To be prepared for any of the 13 possible exam papers, the student must study a set of questions such that every possible exam paper contains at least one question from the studied set. However, the problem asks how many questions must be studied so that the student can answer the required questions on the exam. \n    The exam requires choosing one from Part A and one from Part B. If the student studies all questions in Part A ($A_1, A_2$) and all questions in Part B ($B_1, B_2$), they are guaranteed to be able to answer the required questions regardless of which specific questions from A and B appear on the exam. \n    Since there are 2 questions in Part A and 2 in Part B, studying these 4 questions ensures the student can always pick one from Part A and one from Part B. \n\nThus, the student must study 4 questions.\n\n\\boxed{4}",
+              "tokens": 664,
+              "prompt_tokens": 192,
+              "total_tokens": 856,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 0,
+      "n_trials": 3,
+      "pass_rate": 0.0,
+      "passed": false
+    }
+  ],
+  "minimum_window": null,
+  "search_range_final": [
+    512,
+    32768
+  ],
+  "timestamp": "2026-03-28T13:24:30.837808+00:00",
+  "model_name": "gemini-3.1-flash-lite",
+  "prediction": {
+    "success_prediction": true,
+    "n_reliable_prediction": 50,
+    "compaction_prompt": "Preserve the logic that all 6 potential questions must be studied to guarantee coverage for any 4-question exam configuration.",
+    "raw_response": "To solve this, we must identify the total number of questions that could appear on the exam.\n\n1.  **Analyze the structure:** There are 6 possible questions in total.\n2.  **Constraint:** 4 questions will appear on the exam.\n3.  **Partitioning:** The problem states \"two questions are in part A and two questions are in part B.\" This implies the 4 exam questions are fixed (2 from A, 2 from B).\n4.  **Selection requirement:** You must choose one from Part A and one from Part B.\n5.  **Logic:** To ensure you can answer the exam regardless of which questions are chosen for the exam (out of the 6 total possibilities), you must study all questions that could potentially be on the exam. Since any of the 6 questions could be selected to be part of the 4 on the exam, you must study all 6.\n\n<success_prediction>True</success_prediction>\n<n_reliable_prediction>50</n_reliable_prediction>\n<compaction_prompt>Preserve the logic that all 6 potential questions must be studied to guarantee coverage for any 4-question exam configuration.</compaction_prompt>"
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "problem_id": "sum_divisors_720",
+  "config": {
+    "tir": false,
+    "compaction": true,
+    "name": "NoTIR_Compact"
+  },
+  "binary_search": [
+    {
+      "window": 640,
+      "trials": [
+        {
+          "problem_id": "sum_divisors_720",
+          "correct_answer": 2418,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 0,
+          "success": true,
+          "answer": 2418,
+          "total_tokens_peak": 0,
+          "n_turns": 2,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 539.6,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the sum of all positive divisors of 720. (That is, compute $\\sigma(720)$.)",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the sum of all positive divisors of 720, denoted as $\\sigma(720)$, we first need to determine the prime factorization of 720.\n\n1.  **Prime Factorization of 720**:\n    $$720 = 72 \\times 10 = (8 \\times 9) \\times (2 \\times 5)$$\n    $$720 = (2^3 \\times 3^2) \\times (2^1 \\times 5^1)$$\n    Combine the powers of the same base:\n    $$720 = 2^{3+1} \\times 3^2 \\times 5^1 = 2^4 \\times 3^2 \\times 5^1$$\n\n2.  **Formula for the Sum of Divisors**:\n    For a number $n$ with prime factorization $n = p_1^{e_1} p_2^{e_2} \\cdots p_k^{e_k}$, the sum of its positive divisors is given by:\n    $$\\sigma(n) = \\frac{p_1^{e_1+1}-1}{p_1-1} \\times \\frac{p_2^{e_2+1}-1}{p_2-1} \\times \\cdots \\times \\frac{p_k^{e_k+1}-1}{p_k-1}$$\n    Alternatively, this is the product of the sum of powers of each prime factor:\n    $$\\sigma(n) = (1 + p_1 + \\dots + p_1^{e_1}) \\times (1 + p_2 + \\dots + p_2^{e_2}) \\times \\cdots$$\n\n3.  **Calculate the Sum for Each Prime Factor**:\n    *   For $2^4$:\n        Sum $= 1 + 2 + 2^2 + 2^3 + 2^4 = 1 + 2 + 4 + 8 + 16 = 31$\n        (Using formula: $\\frac{2^5-1}{2-1} = \\frac{31}{1} = 31$)\n\n    *   For $3^2$:\n        Sum $= 1 + 3 + 3^2 = 1 + 3 + 9 = 13$\n        (Using formula: $\\frac{3^3-1}{3-1} = \\frac{26}{2} = 13$)\n\n    *   For $5^1$:\n        Sum $= 1 + 5 = 6$\n        (Using formula: $\\frac{5^2-1}{5-1} = \\frac{24}{4} = 6$)\n\n4.  **Compute the Total Sum**:\n    Multiply the sums calculated above:\n   ",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "length",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Continue solving.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To complete the calculation for $\\sigma(720)$:\n\nWe have the prime factorization $720 = 2^4 \\times 3^2 \\times 5^1$.\nThe sum of divisors is the product of the sums of the powers of each prime factor:\n$$ \\sigma(720) = (1 + 2 + 4 + 8 + 16) \\times (1 + 3 + 9) \\times (1 + 5) $$\n\nCalculating each term:\n- For $2^4$: $1 + 2 + 4 + 8 + 16 = 31$\n- For $3^2$: $1 + 3 + 9 = 13$\n- For $5^1$: $1 + 5 = 6$\n\nNow, multiply these results:\n$$ \\sigma(720) = 31 \\times 13 \\times 6 $$\n\nFirst, calculate $31 \\times 13$:\n$$ 31 \\times 13 = 31 \\times (10 + 3) = 310 + 93 = 403 $$\n\nNext, multiply by 6:\n$$ 403 \\times 6 = (400 + 3) \\times 6 = 2400 + 18 = 2418 $$\n\nThus, the sum of all positive divisors of 720 is 2418.\n\n\\boxed{2418}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "sum_divisors_720",
+          "correct_answer": 2418,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 1,
+          "success": true,
+          "answer": 2418,
+          "total_tokens_peak": 0,
+          "n_turns": 2,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 511.73,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the sum of all positive divisors of 720. (That is, compute $\\sigma(720)$.)",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the sum of all positive divisors of 720, denoted as $\\sigma(720)$, we follow these steps:\n\n### Step 1: Prime Factorization of 720\nFirst, we decompose 720 into its prime factors.\n$$720 = 72 \\times 10$$\n$$72 = 8 \\times 9 = 2^3 \\times 3^2$$\n$$10 = 2 \\times 5 = 2^1 \\times 5^1$$\nCombining these:\n$$720 = (2^3 \\times 3^2) \\times (2^1 \\times 5^1)$$\n$$720 = 2^{3+1} \\times 3^2 \\times 5^1$$\n$$720 = 2^4 \\times 3^2 \\times 5^1$$\n\n### Step 2: Apply the Divisor Sum Formula\nThe sum of divisors function $\\sigma(n)$ is multiplicative. For a number $n = p_1^{e_1} p_2^{e_2} \\cdots p_k^{e_k}$, the sum of divisors is given by:\n$$\\sigma(n) = \\left(\\frac{p_1^{e_1+1}-1}{p_1-1}\\right) \\left(\\frac{p_2^{e_2+1}-1}{p_2-1}\\right) \\cdots \\left(\\frac{p_k^{e_k+1}-1}{p_k-1}\\right)$$\nAlternatively, for a prime power $p^e$, the sum is $1 + p + p^2 + \\dots + p^e$.\n\nLet's calculate the sum for each prime factor:\n\n1.  **For $2^4$**:\n    $$1 + 2 + 4 + 8 + 16 = 31$$\n    (Or using the formula: $\\frac{2^5-1}{2-1} = \\frac{32-1}{1} = 31$)\n\n2.  **For $3^2$**:\n    $$1 + 3 + 9 = 13$$\n    (Or using the formula: $\\frac{3^3-1}{3-1} = \\frac{27-1}{2} = \\frac{26}{2} = 13$)\n\n3.  **For $5^1$**:\n    $$1 + 5 = 6$$\n    (Or using the formula: $\\frac{5^2-1}{5-1} = \\frac{25-1}{4} = \\frac{24}{4} = 6$)\n\n### Step 3: Calculate the Total Sum\nMultiply the sums of the individual prime power components:\n$$\\sigma(",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "length",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Continue solving.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "Continuing from the previous step:\n\nWe calculated the sum of divisors for each prime power component of $720 = 2^4 \\times 3^2 \\times 5^1$:\n1.  Sum for $2^4$: $1 + 2 + 4 + 8 + 16 = 31$\n2.  Sum for $3^2$: $1 + 3 + 9 = 13$\n3.  Sum for $5^1$: $1 + 5 = 6$\n\nNow, we multiply these results together to find $\\sigma(720)$:\n$$ \\sigma(720) = 31 \\times 13 \\times 6 $$\n\nFirst, calculate $31 \\times 13$:\n$$ 31 \\times 10 = 310 $$\n$$ 31 \\times 3 = 93 $$\n$$ 310 + 93 = 403 $$\n\nNext, multiply by 6:\n$$ 403 \\times 6 = (400 \\times 6) + (3 \\times 6) $$\n$$ 2400 + 18 = 2418 $$\n\nThus, the sum of all positive divisors of 720 is 2418.\n\n\\boxed{2418}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        },
+        {
+          "problem_id": "sum_divisors_720",
+          "correct_answer": 2418,
+          "token_limit": 640,
+          "tir": false,
+          "compaction": true,
+          "trial_idx": 2,
+          "success": true,
+          "answer": 2418,
+          "total_tokens_peak": 0,
+          "n_turns": 2,
+          "n_compactions": 0,
+          "n_code_calls": 0,
+          "n_code_errors": 0,
+          "wall_time_s": 478.45,
+          "error": null,
+          "finish_reason": "solved",
+          "conversation": [
+            {
+              "role": "system",
+              "content": "You are a mathematical problem solver.\nYour context window is 640 tokens total. If you exceed it without compacting, you FAIL with score 0.\nYou do not have access to any tools except compact.\n\nTo compact, write:\n<compact>your summary here</compact>\n\nWhen you call compact, the conversation resets to:\n  [this system prompt] + [the problem] + [your summary]\nYou get a fresh 640 budget, but the reset prompt eats into it.\nThe compact call itself costs tokens. You may compact at most 5 times.\n\nGive your final answer as \\boxed{integer}.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Find the sum of all positive divisors of 720. (That is, compute $\\sigma(720)$.)",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "To find the sum of all positive divisors of 720, denoted as $\\sigma(720)$, we follow these steps:\n\n### Step 1: Prime Factorization of 720\nFirst, we find the prime factorization of 720.\n$$720 = 72 \\times 10$$\n$$72 = 8 \\times 9 = 2^3 \\times 3^2$$\n$$10 = 2 \\times 5$$\nCombining these:\n$$720 = (2^3 \\times 3^2) \\times (2 \\times 5) = 2^4 \\times 3^2 \\times 5^1$$\n\nSo, the prime factorization is $720 = 2^4 \\cdot 3^2 \\cdot 5^1$.\n\n### Step 2: Apply the Sum of Divisors Formula\nThe sum of divisors function $\\sigma(n)$ is multiplicative. For a number $n = p_1^{e_1} p_2^{e_2} \\cdots p_k^{e_k}$, the sum of divisors is given by:\n$$\\sigma(n) = \\prod_{i=1}^k \\frac{p_i^{e_i+1} - 1}{p_i - 1}$$\nAlternatively, for each prime power $p^e$, the sum is $1 + p + p^2 + \\dots + p^e$.\n\nLet's calculate the sum for each prime factor:\n\n1.  **For $2^4$**:\n    $$1 + 2 + 2^2 + 2^3 + 2^4 = 1 + 2 + 4 + 8 + 16 = 31$$\n    (Or using the formula: $\\frac{2^5 - 1}{2 - 1} = \\frac{31}{1} = 31$)\n\n2.  **For $3^2$**:\n    $$1 + 3 + 3^2 = 1 + 3 + 9 = 13$$\n    (Or using the formula: $\\frac{3^3 - 1}{3 - 1} = \\frac{26}{2} = 13$)\n\n3.  **For $5^1$**:\n    $$1 + 5 = 6$$\n    (Or using the formula: $\\frac{5^2 - 1}{5 - 1} = \\frac{24}{4} = 6$)\n\n### Step 3: Calculate the Total Sum\nMultiply the sums of the individual prime power components:\n$$\\sigma(720) = 31 \\times 13 \\times 6$$\n\nFirst, multiply $13 \\times 6$:\n$$13 \\times 6 = 78$$\n\nNow, multiply",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "length",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "user",
+              "content": "Continue solving.",
+              "tokens": null,
+              "prompt_tokens": null,
+              "total_tokens": null,
+              "finish_reason": null,
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            },
+            {
+              "role": "assistant",
+              "content": "31 \\times 78$$\n\nCalculation:\n$$31 \\times 78 = 31 \\times (80 - 2) = 31 \\times 80 - 31 \\times 2$$\n$$31 \\times 80 = 2480$$\n$$31 \\times 2 = 62$$\n$$2480 - 62 = 2418$$\n\nAlternatively:\n$$30 \\times 78 = 2340$$\n$$1 \\times 78 = 78$$\n$$2340 + 78 = 2418$$\n\nThe sum of all positive divisors of 720 is 2418.\n\n\\boxed{2418}",
+              "tokens": 0,
+              "prompt_tokens": 0,
+              "total_tokens": 0,
+              "finish_reason": "stop",
+              "code_executed": null,
+              "code_output": null,
+              "compact_summary": null
+            }
+          ]
+        }
+      ],
+      "n_success": 3,
+      "n_trials": 3,
+      "pass_rate": 1.0,
+      "passed": true
+    }
+  ],
+  "minimum_window": 640,
+  "search_range_final": [
+    1,
+    640
+  ],
+  "timestamp": "2026-03-28T18:40:57.635213+00:00",
+  "model_name": "Qwen3.5-35B-A3B-Q4",
+  "prediction": {
+    "success_prediction": true,
+    "n_reliable_prediction": 50,
+    "compaction_prompt": "Preserve the prime factorization of 720 and the formula for the sum of divisors function $\\sigma(n)$.",
+    "raw_response": "<success_prediction>True</success_prediction>\n<n_reliable_prediction>50</n_reliable_prediction>\n<compaction_prompt>Preserve the prime factorization of 720 and the formula for the sum of divisors function $\\sigma(n)$.</compaction_prompt>\n\nTo find the sum of all positive divisors of 720, denoted as $\\sigma(720)$, we first determine its prime factorization.\n\n$720 = 72 \\times 10 = (8 \\times 9) \\times (2 \\times 5) = (2^3 \\times 3^2) \\times (2^1 \\times 5^1) = 2^4 \\times 3^2 \\times 5^1$.\n\nThe sum of divisors function $\\sigma(n)$ is multiplicative. For a prime power $p^k$, the sum of divisors is given by $\\frac{p^{k+1}-1}{p-1}$.\n\nApplying this to each factor:\n1. For $2^4$: Sum $= \\frac{2^{4+1}-1}{2-1} = \\frac{32-1}{1} = 31$.\n2. For $3^2$: Sum $= \\frac{3^{2+1}-1}{3-1} = \\frac{27"
+  }
+}

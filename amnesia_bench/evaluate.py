@@ -10,6 +10,7 @@
 #   code. Prompt construction delegates to prompts.py.
 
 import json
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -31,6 +32,11 @@ OUTER_STOP_RATIO = 0.05         # outer stops when step < 5% of current N
 INNER_STOP_ABS = 1              # inner stops when hi - lo <= 1 token
 N_MIN = 1
 TEMPERATURE = 0.7
+
+# Compaction scheme parameters
+MAX_COMPACTIONS = 5
+MAX_TURNS = 40
+COMPACTION_TRIGGER = 0.50       # compact at 50% of N
 
 
 def run_evaluation(
@@ -227,7 +233,14 @@ def run_evaluation(
         out_path.write_text(json.dumps(result, indent=2))
         return result
 
-    n_while_unbounded = context_max
+    # Record actual tokens used, not context_max
+    n_while_unbounded = max(
+        (t.get("total_tokens", 0) for t in unbounded_log if t.get("success")),
+        default=0,
+    )
+    if n_while_unbounded == 0:
+        n_while_unbounded = context_max  # fallback if token counting failed
+    print(f"  [evaluate] n_while_unbounded={n_while_unbounded} (actual tokens used)")
 
     # ── Step 2: Outer binary search (with checkpointing) ─────────────────────
     print(f"  [evaluate] Outer binary search [{N_MIN}, {n_while_unbounded}] ...")
@@ -467,34 +480,124 @@ def _test_n(
 
 # ─── Single Trial ─────────────────────────────────────────────────────────────
 
+def _extract_final_answer_from_content(text: str):
+    """Extract answer from {final_answer: "ANSWER"} format, with \\boxed{} fallback."""
+    if not text:
+        return None
+    # Try {final_answer: "..."} format
+    match = re.search(r'\{final_answer:\s*"([^"]+)"\}', text)
+    if match:
+        return match.group(1).strip()
+    # Fallback: \\boxed{} and other formats via utils
+    return extract_final_answer(text)
+
+
 def _run_trial(
     client, problem_text: str, ground_truth: str,
     N: int, trial_idx: int,
 ) -> dict:
-    """Run one single evaluation trial at context window N."""
+    """Run one evaluation trial at context window N with 50% compaction scheme."""
     t0 = time.time()
-    prompt = build_evaluation_prompt(N, problem_text)
-    messages = [{"role": "user", "content": prompt}]
 
-    try:
-        resp = client.generate(messages, max_tokens=N)
-    except Exception as e:
-        return {
-            "trial_idx": trial_idx,
-            "N": N,
-            "success": False,
-            "answer": None,
-            "expected": ground_truth,
-            "finish_reason": "error",
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0,
-            "wall_time_s": round(time.time() - t0, 2),
-            "error": str(e),
-        }
+    system_prompt = (
+        f"You are a mathematical problem solver.\n"
+        f"Your context window is restricted to N = {N} tokens "
+        f"(including these instructions and the problem statement). "
+        f"When you reach 50% of this limit, you will be asked to compact "
+        f"your context so that you have room to continue working on the problem.\n\n"
+        f"To compact, write your working summary inside <compact>...</compact> tags.\n"
+        f"When you compact, the conversation resets to: "
+        f"[this system prompt] + [the problem] + [your summary].\n"
+        f"You get a fresh {N} token budget, but the reset prompt eats into it.\n"
+        f"You may compact at most {MAX_COMPACTIONS} times.\n\n"
+        f"When you finish the problem, output your answer in this exact format:\n"
+        f'{{final_answer: "YOUR_ANSWER_HERE"}}'
+    )
 
-    raw = resp.get("content", "") or ""
-    answer = extract_final_answer(raw)
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": problem_text},
+    ]
+
+    n_compactions = 0
+    total_input_tokens = 0
+    total_output_tokens = 0
+    total_tokens_peak = 0
+    answer = None
+    finish_reason = "max_turns"
+    error_msg = None
+
+    for turn_i in range(MAX_TURNS):
+        # Calculate remaining token budget
+        remaining = N - total_tokens_peak if total_tokens_peak > 0 else N
+
+        if remaining <= 0:
+            finish_reason = "budget_exceeded"
+            break
+
+        max_gen = min(remaining, 16384)  # cap per-turn generation
+
+        try:
+            resp = client.generate(messages, max_tokens=max_gen)
+        except Exception as e:
+            error_msg = str(e)
+            finish_reason = "error"
+            break
+
+        content = resp.get("content", "") or ""
+        resp_total = resp.get("total_tokens", 0)
+        total_tokens_peak = max(total_tokens_peak, resp_total)
+        total_input_tokens += resp.get("input_tokens", 0)
+        total_output_tokens += resp.get("output_tokens", 0)
+
+        # Check for final answer
+        answer = _extract_final_answer_from_content(content)
+        if answer is not None:
+            finish_reason = "solved"
+            break
+
+        # Check for compact tag written by the model
+        compact_match = re.search(r"<compact>(.*?)</compact>", content, re.DOTALL)
+        if compact_match:
+            summary = compact_match.group(1).strip()
+            n_compactions += 1
+            if n_compactions > MAX_COMPACTIONS:
+                finish_reason = "max_compactions"
+                break
+            # Reset conversation with summary + fresh budget
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": (
+                    f"{problem_text}\n\n"
+                    f"Your previous progress (from compact call):\n"
+                    f"---\n{summary}\n---\n"
+                    f"Continue solving. Output your answer as: "
+                    f'{{final_answer: "YOUR_ANSWER_HERE"}}'
+                )},
+            ]
+            total_tokens_peak = 0  # fresh budget after compaction
+            continue
+
+        # Check if at/past 50% — ask model to compact
+        if total_tokens_peak >= N * COMPACTION_TRIGGER:
+            messages.append({"role": "assistant", "content": content})
+            messages.append({"role": "user", "content": (
+                "You have reached 50% of your context window. "
+                "Please compact your context now by writing a summary "
+                "inside <compact>...</compact> tags."
+            )})
+            continue
+
+        # If model ran out of tokens without answering, stop
+        if resp.get("finish_reason") in ("length", "truncated"):
+            finish_reason = "truncated"
+            break
+
+        # Otherwise ask model to continue
+        messages.append({"role": "assistant", "content": content})
+        messages.append({"role": "user", "content": "Continue solving."})
+
+    wall_time = round(time.time() - t0, 2)
     success = answer is not None and str(answer).strip() == str(ground_truth).strip()
 
     return {
@@ -503,11 +606,13 @@ def _run_trial(
         "success": success,
         "answer": answer,
         "expected": ground_truth,
-        "finish_reason": resp.get("finish_reason", "unknown"),
-        "input_tokens": resp.get("input_tokens", 0),
-        "output_tokens": resp.get("output_tokens", 0),
-        "total_tokens": resp.get("total_tokens", 0),
-        "wall_time_s": round(time.time() - t0, 2),
+        "finish_reason": finish_reason,
+        "input_tokens": total_input_tokens,
+        "output_tokens": total_output_tokens,
+        "total_tokens": total_tokens_peak,
+        "n_compactions": n_compactions,
+        "wall_time_s": wall_time,
+        "error": error_msg,
     }
 
 
