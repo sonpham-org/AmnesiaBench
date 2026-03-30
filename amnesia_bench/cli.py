@@ -1,8 +1,9 @@
 # Author: Claude Sonnet 4.6 (Bubba)
-# Date: 29-March-2026
+# Date: 29-March-2026 (updated 30-March-2026)
 # PURPOSE: CLI entry point for AmnesiaBench v3. Provides subcommands: predict, evaluate,
-#   score, resume, run-all. Wires argparse to the job modules. No business logic here —
-#   all real work delegated to predict.py, evaluate.py, score.py.
+#   score, resume, run-all, arc-predict, arc-evaluate. Wires argparse to job modules.
+#   No business logic here — all real work delegated to predict.py, evaluate.py,
+#   arc_evaluate.py, score.py.
 #   Integration points: run_bench.py calls main(); imports all job modules.
 # SRP/DRY check: Pass — routing only; zero duplication with job logic.
 
@@ -15,7 +16,7 @@ from . import __version__
 from .backoff import ResumptionQueue
 from .clients import create_client
 from .models import load_models_json, resolve_api_key
-from .problems import load_problem, load_all_problems
+from .problems import load_problem, load_all_problems, load_arc_problem, list_arc_problem_ids
 from .utils import derive_model_name
 
 # Default directories resolved relative to the package parent
@@ -157,6 +158,63 @@ def cmd_resume(args):
             queue.push(model_name, problem_id, job_type, str(e), retry_count + 1)
 
 
+def cmd_arc_predict(args):
+    """Run ARC prediction job: ask model if it can solve the puzzle and what N it needs."""
+    from .arc_evaluate import run_arc_prediction
+
+    results_dir = Path(args.results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    model_url = args.model
+    model_name = args.model_name or derive_model_name(model_url)
+    api_key = _resolve_key(model_url, getattr(args, "api_key", None))
+
+    client = _make_client(model_url, api_key, model_name, args.temperature)
+    queue = ResumptionQueue(results_dir)
+
+    problems = _load_arc_problems(args)
+
+    print(f"[arc-predict] model={model_name} | problems={len(problems)}")
+    for problem in problems:
+        run_arc_prediction(
+            client, model_name, problem,
+            results_dir=results_dir,
+            queue=queue,
+            force=getattr(args, "force", False),
+        )
+
+
+def cmd_arc_evaluate(args):
+    """Run ARC nested binary search evaluation."""
+    from .arc_evaluate import run_arc_evaluations_for_problems
+
+    results_dir = Path(args.results_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    model_url = args.model
+    model_name = args.model_name or derive_model_name(model_url)
+    api_key = _resolve_key(model_url, getattr(args, "api_key", None))
+
+    context_max = getattr(args, "context_max", None) or None
+    if context_max is None:
+        context_max = _get_context_max(model_name, model_url)
+    context_max = int(context_max)
+
+    client = _make_client(model_url, api_key, model_name, args.temperature)
+    queue = ResumptionQueue(results_dir)
+
+    problems = _load_arc_problems(args)
+
+    print(f"[arc-evaluate] model={model_name} | context_max={context_max} | problems={len(problems)}")
+    run_arc_evaluations_for_problems(
+        client, model_name, problems,
+        context_max=context_max,
+        results_dir=results_dir,
+        queue=queue,
+        force=getattr(args, "force", False),
+    )
+
+
 def cmd_run_all(args):
     """Run predict then evaluate for every model in models.json × every problem."""
     from .predict import run_predictions_for_problems
@@ -213,6 +271,35 @@ def _load_problems(args) -> list:
     problem_id = getattr(args, "problem", None)
     if problem_id:
         return [load_problem(problem_id)]
+    print("ERROR: specify --problem ID or --all")
+    sys.exit(1)
+
+
+def _load_arc_problems(args) -> list:
+    """Load ARC problems from the arc-explainer dataset on disk."""
+    if getattr(args, "all", False):
+        ids = list_arc_problem_ids()
+        if not ids:
+            print("ERROR: no ARC problems found on disk")
+            sys.exit(1)
+        print(f"[arc] loading {len(ids)} problem(s) from disk ...")
+        problems = []
+        for pid in ids:
+            try:
+                problems.append(load_arc_problem(pid))
+            except Exception as e:
+                print(f"  WARNING: failed to load ARC problem {pid}: {e}")
+        if not problems:
+            print("ERROR: could not load any ARC problems")
+            sys.exit(1)
+        return problems
+    problem_id = getattr(args, "problem", None)
+    if problem_id:
+        try:
+            return [load_arc_problem(problem_id)]
+        except FileNotFoundError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
     print("ERROR: specify --problem ID or --all")
     sys.exit(1)
 
@@ -279,6 +366,19 @@ def _add_results_arg(p):
     )
 
 
+def _add_arc_problem_args(p):
+    """Problem args for ARC subcommands — sources from arc-explainer dataset."""
+    group = p.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--problem", type=str,
+        help="ARC problem ID (or substring) from arc-explainer evaluation/ or evaluation2/",
+    )
+    group.add_argument(
+        "--all", action="store_true",
+        help="Run all available ARC problems from disk",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="amnesia_bench",
@@ -315,6 +415,27 @@ def build_parser() -> argparse.ArgumentParser:
     _add_problem_args(p_all)
     _add_results_arg(p_all)
 
+    # arc-predict
+    p_arc_pred = sub.add_parser(
+        "arc-predict",
+        help="Run ARC prediction job (model self-assesses whether it can solve the puzzle)",
+    )
+    _add_model_args(p_arc_pred)
+    _add_arc_problem_args(p_arc_pred)
+    _add_results_arg(p_arc_pred)
+    p_arc_pred.add_argument("--force", action="store_true", help="Re-run even if result exists")
+
+    # arc-evaluate
+    p_arc_eval = sub.add_parser(
+        "arc-evaluate",
+        help="Run nested binary search ARC evaluation (grid puzzle answer matching)",
+    )
+    _add_model_args(p_arc_eval)
+    _add_arc_problem_args(p_arc_eval)
+    _add_results_arg(p_arc_eval)
+    # --context-max already added by _add_model_args
+    p_arc_eval.add_argument("--force", action="store_true", help="Re-run even if result exists")
+
     return parser
 
 
@@ -330,6 +451,8 @@ def main():
         "score": cmd_score,
         "resume": cmd_resume,
         "run-all": cmd_run_all,
+        "arc-predict": cmd_arc_predict,
+        "arc-evaluate": cmd_arc_evaluate,
     }
 
     handler = dispatch.get(args.command)
