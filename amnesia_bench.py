@@ -270,7 +270,7 @@ class LLMClient:
                 continue
             choice = chunk.get("choices", [{}])[0]
             delta = choice.get("delta", {})
-            r_piece = delta.get("reasoning_content", "") or ""
+            r_piece = delta.get("reasoning_content", "") or delta.get("reasoning", "") or ""
             c_piece = delta.get("content", "") or ""
             if r_piece:
                 reasoning += r_piece
