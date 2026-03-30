@@ -61,9 +61,11 @@ def cmd_evaluate(args):
     model_name = args.model_name or derive_model_name(model_url)
     api_key = _resolve_key(model_url, getattr(args, "api_key", None))
 
-    context_max = getattr(args, "context_max", None)
+    context_max = getattr(args, "context_max", None) or None
     if context_max is None:
         context_max = _get_context_max(model_name, model_url)
+    # Ensure it's an int, not argparse default
+    context_max = int(context_max)
 
     client = _make_client(model_url, api_key, model_name, args.temperature)
     queue = ResumptionQueue(results_dir)
@@ -257,6 +259,8 @@ def _add_model_args(p):
                    help="Backend URL: anthropic://MODEL, gemini://MODEL, openrouter://MODEL, http://host:port")
     p.add_argument("--model-name", default=None,
                    help="Human label for this model (default: derived from --model URL)")
+    p.add_argument("--context-max", type=int, default=None,
+                   help="Model's full context window in tokens (overrides models.json)")
     p.add_argument("--api-key", default=None,
                    help="API key for Gemini/OpenRouter backends")
     p.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
