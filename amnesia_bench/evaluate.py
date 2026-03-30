@@ -77,10 +77,17 @@ def run_evaluation(
     problem_id = problem["problem_id"]
     out_path = evaluation_filename(results_dir, model_name, problem_id)
 
-    # Resume-friendly skip
+    # Resume-friendly: check for completed or in-progress evaluation
+    checkpoint = None
     if out_path.exists() and not force:
-        print(f"  [evaluate] SKIP {model_name} / {problem_id} — file exists: {out_path.name}")
-        return json.loads(out_path.read_text())
+        existing = json.loads(out_path.read_text())
+        status = existing.get("status", "completed")
+        if status == "completed":
+            print(f"  [evaluate] SKIP {model_name} / {problem_id} — completed: {out_path.name}")
+            return existing
+        elif status == "running":
+            print(f"  [evaluate] RESUMING {model_name} / {problem_id} from checkpoint")
+            checkpoint = existing
 
     # Check prediction — if attempt=False, skip evaluation
     pred_path = prediction_filename(results_dir, model_name, problem_id)
@@ -120,6 +127,82 @@ def run_evaluation(
     problem_text = problem["problem_text"]
     ground_truth = str(problem.get("ground_truth", ""))
 
+    # ── Resume from checkpoint if available ───────────────────────────────────
+    if checkpoint:
+        n_while_unbounded = checkpoint.get("n_while_unbounded")
+        outer_log = checkpoint.get("outer_search_log", [])
+        inner_log = checkpoint.get("inner_search_log", [])
+        phase = checkpoint.get("phase", "outer")
+        state["api_calls"] = checkpoint.get("total_api_calls", 0)
+        state["input_tokens"] = checkpoint.get("total_input_tokens", 0)
+        state["output_tokens"] = checkpoint.get("total_output_tokens", 0)
+
+        if n_while_unbounded is None and phase == "unbounded":
+            # Unbounded test hadn't passed yet — redo it
+            pass  # fall through to unbounded test below
+        elif phase == "outer":
+            # Replay outer log to reconstruct lo/hi
+            lo, hi = _replay_search_log(outer_log, N_MIN, n_while_unbounded or context_max)
+            print(f"  [evaluate] Resumed outer search at [{lo}, {hi}] (step {len(outer_log)})")
+            outer_log, transition_lo, transition_hi = _outer_binary_search(
+                client, problem_text, ground_truth,
+                lo=lo, hi=hi, state=state,
+                existing_log=outer_log, checkpoint_path=out_path,
+                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
+                                 "n_while_unbounded": n_while_unbounded},
+            )
+            # Continue to inner search
+            mid = (transition_lo + transition_hi) // 2
+            inner_lo = max(N_MIN, mid - (transition_hi - transition_lo) * 3 // 2)
+            inner_hi = min(n_while_unbounded or context_max, mid + (transition_hi - transition_lo) * 3 // 2)
+            inner_hi = max(inner_hi, transition_hi)
+            print(f"  [evaluate] Inner binary search [{inner_lo}, {inner_hi}]")
+            inner_log, n_reliable = _inner_binary_search(
+                client, problem_text, ground_truth,
+                lo=inner_lo, hi=inner_hi, state=state,
+                existing_log=[], checkpoint_path=out_path,
+                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
+                                 "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
+            )
+            wall_time = round(time.time() - t_start, 2)
+            result = _build_result(
+                model_name, problem_id,
+                n_while_unbounded=n_while_unbounded, n_reliable=n_reliable,
+                outer_log=outer_log, inner_log=inner_log,
+                search_range=[inner_lo, inner_hi],
+                api_calls=state["api_calls"], input_tokens=state["input_tokens"],
+                output_tokens=state["output_tokens"], cost=0.0, wall_time=wall_time,
+                status="completed",
+            )
+            out_path.write_text(json.dumps(result, indent=2))
+            print(f"  [evaluate] DONE — n_reliable={n_reliable} | {wall_time}s → {out_path.name}")
+            return result
+        elif phase == "inner":
+            # Replay inner log
+            outer_log = checkpoint.get("outer_search_log", [])
+            lo, hi = _replay_search_log(inner_log, checkpoint.get("inner_lo", N_MIN), checkpoint.get("inner_hi", context_max))
+            print(f"  [evaluate] Resumed inner search at [{lo}, {hi}] (step {len(inner_log)})")
+            inner_log, n_reliable = _inner_binary_search(
+                client, problem_text, ground_truth,
+                lo=lo, hi=hi, state=state,
+                existing_log=inner_log, checkpoint_path=out_path,
+                checkpoint_data={"model_name": model_name, "problem_id": problem_id,
+                                 "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
+            )
+            wall_time = round(time.time() - t_start, 2)
+            result = _build_result(
+                model_name, problem_id,
+                n_while_unbounded=n_while_unbounded, n_reliable=n_reliable,
+                outer_log=outer_log, inner_log=inner_log,
+                search_range=[lo, hi],
+                api_calls=state["api_calls"], input_tokens=state["input_tokens"],
+                output_tokens=state["output_tokens"], cost=0.0, wall_time=wall_time,
+                status="completed",
+            )
+            out_path.write_text(json.dumps(result, indent=2))
+            print(f"  [evaluate] DONE — n_reliable={n_reliable} | {wall_time}s → {out_path.name}")
+            return result
+
     # ── Step 1: Unbounded test ────────────────────────────────────────────────
     print(f"  [evaluate] Unbounded test at N={context_max} ...")
     unbounded_pass, unbounded_log = _test_n(
@@ -139,26 +222,29 @@ def run_evaluation(
             output_tokens=state["output_tokens"],
             cost=0.0,
             wall_time=round(time.time() - t_start, 2),
+            status="completed",
         )
         out_path.write_text(json.dumps(result, indent=2))
         return result
 
     n_while_unbounded = context_max
 
-    # ── Step 2: Outer binary search ───────────────────────────────────────────
+    # ── Step 2: Outer binary search (with checkpointing) ─────────────────────
     print(f"  [evaluate] Outer binary search [{N_MIN}, {n_while_unbounded}] ...")
     outer_log, transition_lo, transition_hi = _outer_binary_search(
         client, problem_text, ground_truth,
         lo=N_MIN, hi=n_while_unbounded,
         state=state,
+        checkpoint_path=out_path,
+        checkpoint_data={"model_name": model_name, "problem_id": problem_id,
+                         "n_while_unbounded": n_while_unbounded},
     )
 
-    # ── Step 3: Inner binary search ───────────────────────────────────────────
-    # Expand range 3x around the midpoint of the transition zone
+    # ── Step 3: Inner binary search (with checkpointing) ─────────────────────
     mid = (transition_lo + transition_hi) // 2
     inner_lo = max(N_MIN, mid - (transition_hi - transition_lo) * 3 // 2)
     inner_hi = min(n_while_unbounded, mid + (transition_hi - transition_lo) * 3 // 2)
-    inner_hi = max(inner_hi, transition_hi)  # never shrink below outer hi
+    inner_hi = max(inner_hi, transition_hi)
 
     print(
         f"  [evaluate] Inner binary search [{inner_lo}, {inner_hi}] "
@@ -168,6 +254,9 @@ def run_evaluation(
         client, problem_text, ground_truth,
         lo=inner_lo, hi=inner_hi,
         state=state,
+        checkpoint_path=out_path,
+        checkpoint_data={"model_name": model_name, "problem_id": problem_id,
+                         "n_while_unbounded": n_while_unbounded, "outer_search_log": outer_log},
     )
 
     wall_time = round(time.time() - t_start, 2)
@@ -181,8 +270,9 @@ def run_evaluation(
         api_calls=state["api_calls"],
         input_tokens=state["input_tokens"],
         output_tokens=state["output_tokens"],
-        cost=0.0,  # cost filled by score.py using models.json rates
+        cost=0.0,
         wall_time=wall_time,
+        status="completed",
     )
 
     out_path.write_text(json.dumps(result, indent=2))
@@ -195,17 +285,61 @@ def run_evaluation(
 
 # ─── Outer Binary Search ──────────────────────────────────────────────────────
 
+def _replay_search_log(log: list, initial_lo: int, initial_hi: int) -> tuple:
+    """Replay a search log to reconstruct current lo/hi state."""
+    lo, hi = initial_lo, initial_hi
+    for entry in log:
+        n = entry["N"]
+        if entry["passed"]:
+            hi = n
+        else:
+            lo = n
+    return lo, hi
+
+
+def _write_checkpoint(
+    checkpoint_path: Optional[Path],
+    checkpoint_data: dict,
+    phase: str,
+    outer_log: list,
+    inner_log: list,
+    state: dict,
+    extra: Optional[dict] = None,
+):
+    """Write a running checkpoint to disk after each search step."""
+    if checkpoint_path is None:
+        return
+    data = {
+        **checkpoint_data,
+        "status": "running",
+        "phase": phase,
+        "outer_search_log": outer_log,
+        "inner_search_log": inner_log,
+        "total_api_calls": state["api_calls"],
+        "total_input_tokens": state["input_tokens"],
+        "total_output_tokens": state["output_tokens"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if extra:
+        data.update(extra)
+    checkpoint_path.write_text(json.dumps(data, indent=2))
+
+
 def _outer_binary_search(
     client, problem_text: str, ground_truth: str,
     lo: int, hi: int, state: dict,
+    existing_log: Optional[list] = None,
+    checkpoint_path: Optional[Path] = None,
+    checkpoint_data: Optional[dict] = None,
 ) -> tuple:
     """
     Find the rough fail→pass transition zone using a single trial per N.
     Stop when step < 5% of current N.
     Returns (log, transition_lo, transition_hi).
+    Writes checkpoint after each step for resumability.
     """
-    log = []
-    step = 0
+    log = existing_log if existing_log else []
+    step = len(log)
     last_fail_lo = lo
     first_pass_hi = hi
 
@@ -225,6 +359,12 @@ def _outer_binary_search(
         )
         log.append({"N": mid, "passed": passed, "trials": trial_log})
 
+        # Checkpoint after every step
+        _write_checkpoint(
+            checkpoint_path, checkpoint_data or {},
+            phase="outer", outer_log=log, inner_log=[], state=state,
+        )
+
         if passed:
             first_pass_hi = mid
             hi = mid
@@ -241,14 +381,18 @@ def _outer_binary_search(
 def _inner_binary_search(
     client, problem_text: str, ground_truth: str,
     lo: int, hi: int, state: dict,
+    existing_log: Optional[list] = None,
+    checkpoint_path: Optional[Path] = None,
+    checkpoint_data: Optional[dict] = None,
 ) -> tuple:
     """
     Refine the transition zone using 3 trials per N; require 2/3 to pass.
     Stop when hi - lo <= 1 token.
     Returns (log, n_reliable) where n_reliable is the smallest passing N.
+    Writes checkpoint after each step for resumability.
     """
-    log = []
-    step = 0
+    log = existing_log if existing_log else []
+    step = len(log)
     n_reliable = hi  # conservative default
 
     while hi - lo > INNER_STOP_ABS:
@@ -264,6 +408,14 @@ def _inner_binary_search(
             pass_threshold=INNER_PASS_THRESHOLD,
         )
         log.append({"N": mid, "passed": passed, "n_trials": INNER_CHECKS_PER_N, "trials": trial_log})
+
+        # Checkpoint after every step
+        _write_checkpoint(
+            checkpoint_path, checkpoint_data or {},
+            phase="inner", outer_log=(checkpoint_data or {}).get("outer_search_log", []),
+            inner_log=log, state=state,
+            extra={"inner_lo": lo, "inner_hi": hi},
+        )
 
         if passed:
             n_reliable = mid
@@ -375,8 +527,10 @@ def _build_result(
     cost: float,
     wall_time: float,
     skipped: bool = False,
+    status: str = "completed",
 ) -> dict:
     return {
+        "status": status,
         "model_name": model_name,
         "problem_id": problem_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
