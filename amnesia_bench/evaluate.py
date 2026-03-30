@@ -34,8 +34,7 @@ N_MIN = 1
 TEMPERATURE = 0.7
 
 # Compaction scheme parameters
-MAX_COMPACTIONS = 5
-MAX_TURNS = 40
+MAX_TURNS = 40                  # safety cap on total turns per trial
 COMPACTION_TRIGGER = 0.50       # compact at 50% of N
 
 
@@ -496,7 +495,19 @@ def _run_trial(
     client, problem_text: str, ground_truth: str,
     N: int, trial_idx: int,
 ) -> dict:
-    """Run one evaluation trial at context window N with 50% compaction scheme."""
+    """
+    Run one evaluation trial at context window N with the compaction loop.
+
+    Compaction loop:
+      1. Generate response.
+      2. If final_answer found → success.
+      3. If tokens >= 50% of N → inject compaction prompt, get summary.
+      4. Reset conversation to: system + problem + summary (fresh context).
+      5. Count tokens of the reset prompt. If >= 50% of N → FAIL (compaction_insufficient).
+      6. Else continue from step 1.
+    No hard limit on compactions — only failure mode is when compaction
+    cannot shrink the context below 50% of N.
+    """
     t0 = time.time()
 
     system_prompt = (
@@ -508,8 +519,7 @@ def _run_trial(
         f"To compact, write your working summary inside <compact>...</compact> tags.\n"
         f"When you compact, the conversation resets to: "
         f"[this system prompt] + [the problem] + [your summary].\n"
-        f"You get a fresh {N} token budget, but the reset prompt eats into it.\n"
-        f"You may compact at most {MAX_COMPACTIONS} times.\n\n"
+        f"You get a fresh {N} token budget, but the reset prompt eats into it.\n\n"
         f"When you finish the problem, output your answer in this exact format:\n"
         f'{{final_answer: "YOUR_ANSWER_HERE"}}'
     )
@@ -526,16 +536,15 @@ def _run_trial(
     answer = None
     finish_reason = "max_turns"
     error_msg = None
+    awaiting_compact = False  # True when we've injected the compaction prompt
 
     for turn_i in range(MAX_TURNS):
-        # Calculate remaining token budget
         remaining = N - total_tokens_peak if total_tokens_peak > 0 else N
-
         if remaining <= 0:
             finish_reason = "budget_exceeded"
             break
 
-        max_gen = min(remaining, 16384)  # cap per-turn generation
+        max_gen = min(remaining, 16384)
 
         try:
             resp = client.generate(messages, max_tokens=max_gen)
@@ -550,50 +559,78 @@ def _run_trial(
         total_input_tokens += resp.get("input_tokens", 0)
         total_output_tokens += resp.get("output_tokens", 0)
 
-        # Check for final answer
+        # ── Check for final answer ────────────────────────────────────────────
         answer = _extract_final_answer_from_content(content)
         if answer is not None:
             finish_reason = "solved"
             break
 
-        # Check for compact tag written by the model
-        compact_match = re.search(r"<compact>(.*?)</compact>", content, re.DOTALL)
-        if compact_match:
-            summary = compact_match.group(1).strip()
+        # ── Handle compaction response ────────────────────────────────────────
+        if awaiting_compact:
+            compact_match = re.search(r"<compact>(.*?)</compact>", content, re.DOTALL)
+            if compact_match:
+                summary = compact_match.group(1).strip()
+            else:
+                # Model didn't write <compact> tags — treat full response as summary
+                summary = content.strip()
+
             n_compactions += 1
-            if n_compactions > MAX_COMPACTIONS:
-                finish_reason = "max_compactions"
-                break
-            # Reset conversation with summary + fresh budget
-            messages = [
+
+            # Build the reset conversation
+            reset_user = (
+                f"{problem_text}\n\n"
+                f"Your previous progress (from compact call):\n"
+                f"---\n{summary}\n---\n"
+                f"Continue solving. Output your answer as: "
+                f'{{final_answer: "YOUR_ANSWER_HERE"}}'
+            )
+            reset_messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": (
-                    f"{problem_text}\n\n"
-                    f"Your previous progress (from compact call):\n"
-                    f"---\n{summary}\n---\n"
-                    f"Continue solving. Output your answer as: "
-                    f'{{final_answer: "YOUR_ANSWER_HERE"}}'
-                )},
+                {"role": "user", "content": reset_user},
             ]
-            total_tokens_peak = 0  # fresh budget after compaction
+
+            # Probe how many tokens the reset prompt costs
+            try:
+                probe = client.generate(reset_messages, max_tokens=1)
+                reset_tokens = probe.get("total_tokens", 0)
+                total_input_tokens += probe.get("input_tokens", 0)
+                total_output_tokens += probe.get("output_tokens", 0)
+            except Exception as e:
+                # Can't probe — estimate conservatively (fail safe)
+                reset_tokens = N  # treat as failure
+                error_msg = f"probe error: {e}"
+
+            if reset_tokens >= N * COMPACTION_TRIGGER:
+                # Summary too large — compaction didn't help enough
+                finish_reason = "compaction_insufficient"
+                total_tokens_peak = max(total_tokens_peak, reset_tokens)
+                break
+
+            # Compaction succeeded — reset context and continue
+            messages = reset_messages
+            total_tokens_peak = reset_tokens
+            awaiting_compact = False
             continue
 
-        # Check if at/past 50% — ask model to compact
+        # ── Check if we've hit 50% — trigger compaction ───────────────────────
         if total_tokens_peak >= N * COMPACTION_TRIGGER:
             messages.append({"role": "assistant", "content": content})
             messages.append({"role": "user", "content": (
                 "You have reached 50% of your context window. "
-                "Please compact your context now by writing a summary "
-                "inside <compact>...</compact> tags."
+                "Please compact your context now by writing a condensed summary "
+                "of your work so far inside <compact>...</compact> tags. "
+                "Be as concise as possible — your summary must fit well under "
+                f"{int(N * COMPACTION_TRIGGER)} tokens."
             )})
+            awaiting_compact = True
             continue
 
-        # If model ran out of tokens without answering, stop
+        # ── Model truncated without answering ─────────────────────────────────
         if resp.get("finish_reason") in ("length", "truncated"):
             finish_reason = "truncated"
             break
 
-        # Otherwise ask model to continue
+        # ── Continue working ───────────────────────────────────────────────────
         messages.append({"role": "assistant", "content": content})
         messages.append({"role": "user", "content": "Continue solving."})
 
