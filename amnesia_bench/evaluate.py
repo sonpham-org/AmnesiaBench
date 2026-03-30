@@ -161,14 +161,11 @@ def run_evaluation(
         compact_inner_log = []
         phase = "unbounded"
 
-    # ── Step 1: Unbounded test (no compaction) ────────────────────────────────
+    # ── Step 1: Unbounded test — no restriction, measure natural token usage ──
     if phase == "unbounded" or n_while_unbounded is None:
-        print(f"  [evaluate] Unbounded test at N={context_max} (no compaction) ...")
-        unbounded_pass, unbounded_log = _test_n(
-            client, problem_text, ground_truth, context_max,
-            n_trials=1, state=state,
-            compaction_enabled=False,
-            traces_dir=traces_dir,
+        print(f"  [evaluate] Unbounded test — no context restriction, measuring natural usage...")
+        unbounded_pass, unbounded_log = _test_unbounded(
+            client, problem_text, ground_truth, state=state,
         )
         if not unbounded_pass:
             print(f"  [evaluate] UNSOLVABLE at context_max={context_max} — skipping search")
@@ -552,6 +549,77 @@ def _inner_binary_search(
 
     print(f"  [inner-{label}] n_reliable={n_reliable}")
     return log, n_reliable
+
+
+# ─── Unbounded Test ───────────────────────────────────────────────────────────
+
+def _test_unbounded(
+    client, problem_text: str, ground_truth: str, state: dict,
+) -> tuple:
+    """
+    Run ONE trial with NO context window restriction.
+    Just: 'solve this problem'. No mention of N, no compaction, no constraints.
+    Measures how many tokens the model naturally uses.
+    Returns (passed: bool, trial_log: list with one entry).
+    """
+    t0 = time.time()
+    system_prompt = (
+        "You are a mathematical problem solver.\n"
+        "Solve the following problem. Show your reasoning.\n"
+        'When you finish, output your answer in this exact format:\n'
+        '{final_answer: "YOUR_ANSWER_HERE"}'
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": problem_text},
+    ]
+
+    try:
+        # Use a generous max_tokens but don't tell the model about any limit
+        resp = client.generate(messages, max_tokens=16384, stream=False)
+    except Exception as e:
+        result = {
+            "trial_idx": 0, "N": "unbounded", "success": False,
+            "answer": None, "expected": ground_truth,
+            "finish_reason": "error", "input_tokens": 0,
+            "output_tokens": 0, "total_tokens": 0,
+            "wall_time_s": round(time.time() - t0, 2), "error": str(e),
+        }
+        state["api_calls"] += 1
+        return False, [result]
+
+    content = resp.get("content", "") or ""
+    answer = _extract_final_answer_from_content(content)
+    success = answer is not None and str(answer).strip() == str(ground_truth).strip()
+
+    total_tokens = resp.get("total_tokens", 0)
+    input_tokens = resp.get("input_tokens", 0)
+    output_tokens = resp.get("output_tokens", 0)
+    timings = resp.get("timings", {})
+
+    # If token counting failed (streaming fallback), estimate
+    if total_tokens == 0:
+        input_tokens = sum(len(m.get("content", "")) for m in messages) // 4
+        output_tokens = len(content) // 4
+        total_tokens = input_tokens + output_tokens
+
+    wall_time = round(time.time() - t0, 2)
+    state["api_calls"] += 1
+    state["input_tokens"] += input_tokens
+    state["output_tokens"] += output_tokens
+
+    result = {
+        "trial_idx": 0, "N": "unbounded", "success": success,
+        "answer": answer, "expected": ground_truth,
+        "finish_reason": resp.get("finish_reason", "unknown"),
+        "input_tokens": input_tokens, "output_tokens": output_tokens,
+        "total_tokens": total_tokens, "timings": timings,
+        "wall_time_s": wall_time, "error": None,
+    }
+    status = "PASS" if success else "FAIL"
+    print(f"    unbounded: {status} | ans={answer!r} | {total_tokens} total tokens | {wall_time}s")
+
+    return success, [result]
 
 
 # ─── Single N Test ────────────────────────────────────────────────────────────
