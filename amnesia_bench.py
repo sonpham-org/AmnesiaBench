@@ -6,7 +6,9 @@
 #   problems at 60% success rate. Supports 10 problems × N models for overnight runs.
 #   Features: prediction phase, composite Scott scoring, --model / --model-name flags,
 #   --run-all-models mode reading models.json, per-model result namespacing, full scoring table.
-#   Supports llama.cpp (http://) and Google Gemini (gemini://) backends via create_client().
+#   Supports llama.cpp (http://), Google Gemini (gemini://), OpenRouter (openrouter://),
+#   and Anthropic OAuth (anthropic://) backends via create_client().
+#   ARC puzzle support: uses arc_evaluator for grid answer evaluation, arc_prompts for system prompts.
 #   Exponential backoff applied to all external API calls (429/503 retry with jitter).
 #   Integration points: run_prediction_phase() → run_problem() → binary_search() → run_trial().
 # SRP/DRY check: Pass — prediction phase, scoring, model iteration all isolated. No duplication
@@ -60,12 +62,15 @@ from typing import Optional, Union
 
 import requests
 
+from arc.arc_evaluator import evaluate_arc_answer
+from arc.arc_prompts import ARC_SYSTEM_PROMPT
+
 # ─── Defaults ────────────────────────────────────────────────────────────────
 
 SERVER_URL = "http://localhost:8080"
 MIN_WINDOW = 1
 MAX_WINDOW = 32768
-TRIALS_PER_WINDOW = 3
+TRIALS_PER_WINDOW = 1
 SUCCESS_THRESHOLD = 0.6          # 60%
 CONVERGENCE_RATIO = 1.05         # stop when hi/lo < 5% (fallback)
 CONVERGENCE_ABS = 50             # stop when hi - lo < 50 tokens (primary)
@@ -442,6 +447,119 @@ class GeminiClient:
             return False
 
 
+# ─── Anthropic OAuth Client ──────────────────────────────────────────────────
+
+class AnthropicOAuthClient:
+    """Client for Anthropic API using OAuth tokens (sk-ant-oat prefix).
+
+    Uses ANTHROPIC_OAUTHTOKEN env var. Requires anthropic-beta header.
+    System prompt is always "You are Claude Code, Anthropic's official CLI for Claude."
+    ARC/AIMO strategies go in the user message, NOT in system.
+    Does NOT pass temperature parameter (omit entirely — 0.0 gets rejected).
+    """
+
+    FIXED_SYSTEM = "You are Claude Code, Anthropic's official CLI for Claude."
+
+    def __init__(self, model: str = "claude-sonnet-4-6"):
+        self.model = model
+        self.token = os.environ.get("ANTHROPIC_OAUTHTOKEN")
+        if not self.token:
+            raise ValueError(
+                "AnthropicOAuthClient requires ANTHROPIC_OAUTHTOKEN env var (sk-ant-oat prefix)."
+            )
+        self.base_url = "https://api.anthropic.com/v1/messages"
+
+    def generate(self, messages: list[dict], max_tokens: int) -> dict:
+        """Send messages to Anthropic messages API. Returns same dict shape as LLMClient."""
+        max_tokens = max(1, max_tokens)
+
+        # Convert OpenAI-style messages to Anthropic format.
+        # System goes in top-level 'system' field, not in messages array.
+        anthropic_messages = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            text = msg.get("content", "")
+            if role == "system":
+                # Skip — we use fixed system prompt
+                continue
+            elif role == "assistant":
+                anthropic_messages.append({"role": "assistant", "content": text})
+            else:
+                anthropic_messages.append({"role": "user", "content": text})
+
+        payload = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "system": self.FIXED_SYSTEM,
+            "messages": anthropic_messages,
+            # NOTE: temperature intentionally omitted — 0.0 gets rejected by Anthropic
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "oauth-2025-04-20",
+            "content-type": "application/json",
+        }
+
+        def _do_request():
+            resp = requests.post(
+                self.base_url,
+                headers=headers,
+                json=payload,
+                timeout=3600,
+            )
+            resp.raise_for_status()
+            return resp
+
+        resp = with_exponential_backoff(_do_request)
+        data = resp.json()
+
+        # Extract text from content[0].text
+        content_blocks = data.get("content", [])
+        content = ""
+        for block in content_blocks:
+            if block.get("type") == "text":
+                content += block.get("text", "")
+
+        usage = data.get("usage", {})
+        prompt_tokens = usage.get("input_tokens", 0)
+        completion_tokens = usage.get("output_tokens", 0)
+        total_tokens = prompt_tokens + completion_tokens
+
+        stop_reason = data.get("stop_reason", "end_turn")
+        finish_reason_map = {
+            "end_turn": "stop",
+            "max_tokens": "length",
+            "stop_sequence": "stop",
+        }
+        finish_reason = finish_reason_map.get(stop_reason, "stop")
+
+        print(f"    [anthropic] {completion_tokens} tokens | finish={finish_reason}")
+        print(content[:120].replace("\n", " ") + ("..." if len(content) > 120 else ""))
+
+        return {
+            "content": content,
+            "reasoning_content": "",
+            "final_content": content,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "finish_reason": finish_reason,
+        }
+
+    def ping(self) -> bool:
+        """Health check — try a minimal generation."""
+        try:
+            resp = self.generate(
+                messages=[{"role": "user", "content": "Say OK."}],
+                max_tokens=10,
+            )
+            return bool(resp.get("content"))
+        except Exception:
+            return False
+
+
 # ─── Client Factory ──────────────────────────────────────────────────────────
 
 def create_client(
@@ -483,12 +601,16 @@ def create_client(
             api_key=api_key,
             model_name=or_model,
         )
+    elif server_url.startswith("anthropic://"):
+        # anthropic://claude-sonnet-4-6 → model = claude-sonnet-4-6
+        anthropic_model = server_url[len("anthropic://"):].strip("/") or "claude-sonnet-4-6"
+        return AnthropicOAuthClient(model=anthropic_model)
     elif server_url.startswith("http"):
         return LLMClient(server_url=server_url, temperature=temperature)
     else:
         raise ValueError(
             f"Unrecognised server URL scheme: '{server_url}'. "
-            "Use http://, https://, openrouter://, gemini://, or google://"
+            "Use http://, https://, openrouter://, anthropic://, gemini://, or google://"
         )
 
 
@@ -868,13 +990,13 @@ class Turn:
 @dataclass
 class TrialResult:
     problem_id: str
-    correct_answer: int
+    correct_answer: object  # int for math, list for ARC
     token_limit: int
     tir: bool
     compaction: bool
     trial_idx: int
     success: bool
-    answer: Optional[int]
+    answer: object  # Optional[int] for math, str marker for ARC
     total_tokens_peak: int
     n_turns: int
     n_compactions: int
@@ -890,12 +1012,13 @@ def run_trial(
     client,
     problem_id: str,
     problem_text: str,
-    correct_answer: int,
+    correct_answer,
     token_limit: int,
     tir: bool,
     compaction: bool,
     trial_idx: int,
     compaction_hint: str = "",
+    topic: str = "math",
 ) -> TrialResult:
     t0 = time.time()
     sandbox = PythonSandbox() if tir else None
@@ -910,19 +1033,34 @@ def run_trial(
 
     active_compaction_hint = compaction_hint.strip() if compaction_hint else DEFAULT_COMPACTION_PROMPT
 
-    if compaction:
-        sys_prompt = SYSTEM_COMPACT.format(
-            token_limit=token_limit, max_compactions=MAX_COMPACTIONS
-        )
+    is_arc = (topic == "arc")
+    is_anthropic = isinstance(client, AnthropicOAuthClient)
+
+    if is_arc:
+        if is_anthropic:
+            # Anthropic OAuth: fixed system prompt, ARC strategy in user message
+            sys_prompt = AnthropicOAuthClient.FIXED_SYSTEM
+            user_content = ARC_SYSTEM_PROMPT + "\n\n" + problem_text
+        else:
+            # All other providers: ARC system prompt, problem in user message
+            sys_prompt = ARC_SYSTEM_PROMPT
+            user_content = problem_text
     else:
-        sys_prompt = SYSTEM_HARD.format(token_limit=token_limit)
+        # AIMO3 math — existing behavior
+        if compaction:
+            sys_prompt = SYSTEM_COMPACT.format(
+                token_limit=token_limit, max_compactions=MAX_COMPACTIONS
+            )
+        else:
+            sys_prompt = SYSTEM_HARD.format(token_limit=token_limit)
+        user_content = problem_text
 
     messages = [
         {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": problem_text},
+        {"role": "user", "content": user_content},
     ]
     conversation.append(Turn(role="system", content=sys_prompt))
-    conversation.append(Turn(role="user", content=problem_text))
+    conversation.append(Turn(role="user", content=user_content))
 
     for turn_i in range(MAX_TURNS):
         if peak_tokens > 0:
@@ -942,8 +1080,13 @@ def run_trial(
             finish = "error"
             break
 
-        if resp["finish_reason"] in ("length", "truncated") and extract_boxed_answer(resp["content"]) is None:
-            finish = "truncated"
+        if resp["finish_reason"] in ("length", "truncated"):
+            if is_arc:
+                from arc.arc_evaluator import extract_all_numbered_answers
+                if not extract_all_numbered_answers(resp["content"]):
+                    finish = "truncated"
+            elif extract_boxed_answer(resp["content"]) is None:
+                finish = "truncated"
 
         content = resp["content"]
         total_now = resp["total_tokens"]
@@ -959,10 +1102,20 @@ def run_trial(
         )
         conversation.append(turn)
 
-        answer = extract_boxed_answer(content)
-        if answer is not None:
-            finish = "solved"
-            break
+        if is_arc:
+            arc_result = evaluate_arc_answer(content, correct_answer)
+            if arc_result["correct"]:
+                finish = "solved"
+                break
+            elif arc_result["num_answers_found"] > 0:
+                # Model provided answer tags but got it wrong
+                finish = "wrong_answer"
+                break
+        else:
+            answer = extract_boxed_answer(content)
+            if answer is not None:
+                finish = "solved"
+                break
 
         compact_summary = extract_compact_call(content) if compaction else None
         if compact_summary is not None:
@@ -1017,14 +1170,30 @@ def run_trial(
 
     # Extract final answer from conversation
     answer = None
-    for t in reversed(conversation):
-        if t.role == "assistant":
-            answer = extract_boxed_answer(t.content)
-            if answer is not None:
+    if is_arc:
+        # For ARC, evaluate against ground truth grids
+        for t in reversed(conversation):
+            if t.role == "assistant":
+                arc_result = evaluate_arc_answer(t.content, correct_answer)
+                if arc_result["num_answers_found"] > 0:
+                    answer = "arc_answer_found"
+                    break
+        elapsed = time.time() - t0
+        # Re-evaluate the last assistant response for correctness
+        success = False
+        for t in reversed(conversation):
+            if t.role == "assistant":
+                arc_result = evaluate_arc_answer(t.content, correct_answer)
+                success = arc_result["correct"]
                 break
-
-    elapsed = time.time() - t0
-    success = answer is not None and answer == correct_answer
+    else:
+        for t in reversed(conversation):
+            if t.role == "assistant":
+                answer = extract_boxed_answer(t.content)
+                if answer is not None:
+                    break
+        elapsed = time.time() - t0
+        success = answer is not None and answer == correct_answer
 
     return TrialResult(
         problem_id=problem_id,
@@ -1063,13 +1232,14 @@ def binary_search(
     client,
     problem_id: str,
     problem_text: str,
-    correct_answer: int,
+    correct_answer,
     tir: bool,
     compaction: bool,
     min_window: int = MIN_WINDOW,
     max_window: int = MAX_WINDOW,
     trials: int = TRIALS_PER_WINDOW,
     compaction_hint: str = "",
+    topic: str = "math",
 ) -> dict:
     config_name = f"{'Compact' if compaction else 'HardCut'}"
     print(f"\n{'='*60}")
@@ -1083,7 +1253,7 @@ def binary_search(
     print(f"\n  [Verify] Testing max window = {max_window} ...")
     test = _test_window(
         client, problem_id, problem_text, correct_answer,
-        max_window, tir, compaction, trials, compaction_hint
+        max_window, tir, compaction, trials, compaction_hint, topic
     )
     search_log.append(test)
     print(f"  [Verify] {test.n_success}/{test.n_trials} passed ({test.pass_rate:.0%})")
@@ -1108,7 +1278,7 @@ def binary_search(
         print(f"\n  [Step {step}] Testing window = {mid}  (range [{lo}, {hi}], gap {hi-lo}, ratio {hi/lo:.3f})")
         test = _test_window(
             client, problem_id, problem_text, correct_answer,
-            mid, tir, compaction, trials, compaction_hint
+            mid, tir, compaction, trials, compaction_hint, topic
         )
         search_log.append(test)
         print(f"  [Step {step}] {test.n_success}/{test.n_trials} passed ({test.pass_rate:.0%}) → {'hi=mid' if test.passed else 'lo=mid'}")
@@ -1118,10 +1288,12 @@ def binary_search(
         else:
             lo = mid
 
-    print(f"\n  RESULT: minimum window ≈ {hi} tokens (range [{lo}, {hi}])")
+    # Snap to nearest multiple of 16 (round up)
+    snapped = ((hi + 15) // 16) * 16
+    print(f"\n  RESULT: minimum window ≈ {hi} tokens → snapped to {snapped} (range [{lo}, {hi}])")
     return _build_result(
         problem_id, tir, compaction, search_log,
-        minimum_window=hi,
+        minimum_window=snapped,
         search_range_final=(lo, hi),
     )
 
@@ -1130,6 +1302,7 @@ def _test_window(
     client, problem_id, problem_text, correct_answer,
     window, tir, compaction, n_trials,
     compaction_hint: str = "",
+    topic: str = "math",
 ) -> WindowTest:
     t0 = time.time()
 
@@ -1138,6 +1311,7 @@ def _test_window(
             client, problem_id, problem_text, correct_answer,
             token_limit=window, tir=tir, compaction=compaction,
             trial_idx=i, compaction_hint=compaction_hint,
+            topic=topic,
         )
 
     trials_results = [None] * n_trials
@@ -1272,6 +1446,7 @@ def run_problem(
             continue
 
         # Binary search
+        problem_topic = problem.get("topic", "math")
         result = binary_search(
             client,
             problem_id=pid,
@@ -1283,6 +1458,7 @@ def run_problem(
             max_window=max_window,
             trials=trials,
             compaction_hint=compaction_hint,
+            topic=problem_topic,
         )
         result["model_name"] = model_name
         result["prediction"] = prediction
@@ -1453,6 +1629,9 @@ def derive_model_name(url: str) -> str:
     if url.startswith("gemini://") or url.startswith("google://"):
         scheme = "gemini://" if url.startswith("gemini://") else "google://"
         return url[len(scheme):].strip("/") or "gemini"
+    # For anthropic:// URLs extract the model name directly
+    if url.startswith("anthropic://"):
+        return url[len("anthropic://"):].strip("/") or "claude-sonnet-4-6"
     # Extract host:port, replace dots/colons with underscores
     host_port = url.split("//")[-1]
     return re.sub(r"[^\w]", "_", host_port)
@@ -1533,6 +1712,8 @@ def main():
         api_key = args.api_key
     elif _model_url.startswith("openrouter://"):
         api_key = os.environ.get("OPENROUTER_API_KEY")
+    elif _model_url.startswith("anthropic://"):
+        api_key = os.environ.get("ANTHROPIC_OAUTHTOKEN")
     else:
         api_key = os.environ.get("GEMINI_API_KEY")
 
