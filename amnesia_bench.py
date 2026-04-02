@@ -75,7 +75,7 @@ SUCCESS_THRESHOLD = 0.6          # 60%
 CONVERGENCE_RATIO = 1.05         # stop when hi/lo < 5% (fallback)
 CONVERGENCE_ABS = 50             # stop when hi - lo < 50 tokens (primary)
 MAX_COMPLETION_TOKENS = 16384    # hard cap per generation turn
-MAX_COMPACTIONS = 5
+MAX_COMPACTIONS = 10
 COMPACTION_TRIGGER = 0.70
 MAX_TURNS = 40
 CODE_TIMEOUT = 30
@@ -84,7 +84,32 @@ PROBLEMS_DIR = Path(__file__).parent / "problems"
 RESULTS_DIR = Path(__file__).parent / "results"
 MODELS_JSON = Path(__file__).parent / "models.json"
 
+# ─── Model Context Window Registry ───────────────────────────────────────────
+
+MODEL_CONTEXT_WINDOWS = {
+    "claude-sonnet-4.6": 200000,
+    "deepseek-v3.2": 65536,
+    "gemini-2.5-flash-lite": 1048576,
+    "gemini-3.1-flash-lite-preview": 1048576,
+    "gemini-3.1-pro-preview": 1048576,
+    "mistral-small-2603": 32768,
+    "openai/gpt-oss-20b": 128000,
+    "qwen/qwen3.6-plus-preview": 131072,
+    "glm-4.6v-flash": 128000,
+}
+DEFAULT_CONTEXT_WINDOW = 32768  # fallback if model not in mapping
+
+
+def get_model_context_window(model_name: str) -> int:
+    """Return the known context window for a model, falling back to DEFAULT_CONTEXT_WINDOW."""
+    return MODEL_CONTEXT_WINDOWS.get(model_name, DEFAULT_CONTEXT_WINDOW)
+
+
 DEFAULT_COMPACTION_PROMPT = "Compact your context window to continue."
+
+SYSTEM_UNBOUNDED = """You are solving a problem. Show your work step by step.
+Provide your final answer in \\boxed{}.
+You may write and execute Python code to help."""
 
 # ─── Prompt Templates ────────────────────────────────────────────────────────
 
@@ -440,9 +465,9 @@ class GeminiClient:
         try:
             resp = self.generate(
                 messages=[{"role": "user", "content": "Say OK."}],
-                max_tokens=10,
+                max_tokens=100,
             )
-            return bool(resp.get("content"))
+            return bool(resp.get("content") or resp.get("final_content"))
         except Exception:
             return False
 
@@ -985,6 +1010,7 @@ class Turn:
     code_executed: Optional[str] = None
     code_output: Optional[str] = None
     compact_summary: Optional[str] = None
+    forced_compact: bool = False
 
 
 @dataclass
@@ -1019,6 +1045,7 @@ def run_trial(
     trial_idx: int,
     compaction_hint: str = "",
     topic: str = "math",
+    system_prompt_override: str = None,
 ) -> TrialResult:
     t0 = time.time()
     sandbox = PythonSandbox() if tir else None
@@ -1047,7 +1074,9 @@ def run_trial(
             user_content = problem_text
     else:
         # AIMO3 math — existing behavior
-        if compaction:
+        if system_prompt_override is not None:
+            sys_prompt = system_prompt_override
+        elif compaction:
             sys_prompt = SYSTEM_COMPACT.format(
                 token_limit=token_limit, max_compactions=MAX_COMPACTIONS
             )
@@ -1072,7 +1101,13 @@ def run_trial(
             finish = "budget_exceeded" if compaction else "truncated"
             break
 
-        capped_tokens = min(remaining, MAX_COMPLETION_TOKENS)
+        # In Compact config, cap generation at 50% of token_limit so we can
+        # inject compaction right at the boundary (not after overshooting).
+        if compaction and peak_tokens < 0.5 * token_limit:
+            compact_ceiling = int(0.5 * token_limit) - peak_tokens
+            capped_tokens = min(remaining, MAX_COMPLETION_TOKENS, max(1, compact_ceiling))
+        else:
+            capped_tokens = min(remaining, MAX_COMPLETION_TOKENS)
         try:
             resp = client.generate(messages, max_tokens=capped_tokens)
         except Exception as e:
@@ -1091,6 +1126,14 @@ def run_trial(
         content = resp["content"]
         total_now = resp["total_tokens"]
         peak_tokens = max(peak_tokens, total_now)
+
+        # Enforce budget BEFORE answer check — required for thinking models (e.g. Qwen3.6+)
+        # where reasoning tokens bypass max_tokens cap and total_now >> token_limit.
+        # Without this check, a thinking model can "solve" a problem using its full
+        # reasoning budget even when token_limit=288.
+        if total_now >= token_limit:
+            finish = "budget_exceeded" if compaction else "truncated"
+            break
 
         turn = Turn(
             role="assistant",
@@ -1135,6 +1178,43 @@ def run_trial(
             ]
             peak_tokens = 0
             conversation.append(Turn(role="user", content=f"[COMPACTION #{n_compactions} — context reset]"))
+            continue
+
+        # Harness-forced compaction: if Compact config and we've crossed 50% of token budget
+        # and the model didn't voluntarily compact, force a summary + context reset.
+        if compaction and total_now >= 0.5 * token_limit and compact_summary is None:
+            force_prompt = (
+                "You have used over 50% of your context budget. "
+                "Summarize your progress, approach, and any intermediate results so far. "
+                "Be concise but preserve all critical information needed to continue solving this problem."
+            )
+            try:
+                force_resp = client.generate(
+                    messages + [{"role": "user", "content": force_prompt}],
+                    max_tokens=500,
+                )
+                summary = force_resp["content"]
+            except Exception as e:
+                summary = f"[forced compaction failed: {e}]"
+
+            n_compactions += 1
+            conversation.append(Turn(
+                role="assistant",
+                content=summary,
+                forced_compact=True,
+            ))
+            conversation.append(Turn(
+                role="user",
+                content=f"[FORCED COMPACTION #{n_compactions} at {int(100 * total_now / token_limit)}% — context reset]",
+            ))
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": POST_COMPACT_USER.format(
+                    problem_text=problem_text,
+                    summary=summary,
+                )},
+            ]
+            peak_tokens = 0
             continue
 
         if total_now >= token_limit:
@@ -1351,6 +1431,94 @@ def _build_result(problem_id, tir, compaction, search_log, minimum_window, searc
         "search_range_final": list(search_range_final),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ─── Unbounded Mode ───────────────────────────────────────────────────────────
+
+def run_unbounded(
+    client,
+    model_name: str,
+    problem_id: str,
+    problem_text: str,
+    correct_answer,
+    n_runs: int = 5,
+    topic: str = "math",
+    tir: bool = False,
+) -> dict:
+    """
+    Run problem n_runs times with no artificial context window constraints.
+    Uses the model's full context window. No compaction, no token limit hints
+    in the system prompt — just a clean "solve this problem" prompt.
+
+    Returns a result dict with schema:
+        {model_name, problem_id, config: "Unbounded", context_window, n_runs,
+         runs: [{tokens_used, solved, answer, wall_time_s}, ...],
+         avg_tokens, min_tokens, max_tokens, solve_rate, timestamp}
+    """
+    context_window = get_model_context_window(model_name)
+    is_arc = (topic == "arc")
+
+    # Clean system prompt — no mention of token limits or context windows
+    sys_prompt_override = None if is_arc else SYSTEM_UNBOUNDED
+
+    print(f"\n{'='*60}")
+    print(f"  {problem_id} | Unbounded | model={model_name}")
+    print(f"  Context window: {context_window:,} | n_runs: {n_runs}")
+    print(f"{'='*60}")
+
+    runs = []
+    for i in range(n_runs):
+        print(f"\n  [Unbounded] Run {i+1}/{n_runs} ...")
+        result = run_trial(
+            client=client,
+            problem_id=problem_id,
+            problem_text=problem_text,
+            correct_answer=correct_answer,
+            token_limit=context_window,
+            tir=tir,
+            compaction=False,
+            trial_idx=i,
+            topic=topic,
+            system_prompt_override=sys_prompt_override,
+        )
+        run_entry = {
+            "tokens_used": result.total_tokens_peak,
+            "solved": result.success,
+            "answer": str(result.answer) if result.answer is not None else None,
+            "wall_time_s": result.wall_time_s,
+        }
+        runs.append(run_entry)
+        status = "OK" if result.success else "FAIL"
+        print(f"  [Unbounded] Run {i+1}: {status} | {result.total_tokens_peak} tok | {result.wall_time_s}s")
+
+    all_tokens = [r["tokens_used"] for r in runs]
+    n_solved = sum(1 for r in runs if r["solved"])
+    avg_tokens = int(round(sum(all_tokens) / len(all_tokens))) if all_tokens else 0
+    min_tokens = min(all_tokens) if all_tokens else 0
+    max_tokens = max(all_tokens) if all_tokens else 0
+    solve_rate = n_solved / n_runs if n_runs > 0 else 0.0
+
+    result_data = {
+        "model_name": model_name,
+        "problem_id": problem_id,
+        "config": "Unbounded",
+        "context_window": context_window,
+        "n_runs": n_runs,
+        "runs": runs,
+        "avg_tokens": avg_tokens,
+        "min_tokens": min_tokens,
+        "max_tokens": max_tokens,
+        "solve_rate": solve_rate,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+    RESULTS_DIR.mkdir(exist_ok=True)
+    outpath = result_filename(model_name, problem_id, "Unbounded")
+    outpath.write_text(json.dumps(result_data, indent=2, default=str))
+    print(f"\n  Saved (Unbounded): {outpath.name}")
+    print(f"  solve_rate={solve_rate:.2f} avg={avg_tokens} min={min_tokens} max={max_tokens}")
+
+    return result_data
 
 
 # ─── Problem Loading ─────────────────────────────────────────────────────────
@@ -1694,11 +1862,16 @@ def main():
             # Legacy short names
             "HardCut": (False, False),
             "Compact": (False, True),
+            # Unbounded mode — no binary search, full context window, no token hints
+            "Unbounded": None,
         }
         if args.config not in config_map:
             print(f"ERROR: Unknown config '{args.config}'. Choose from: {list(config_map.keys())}")
             sys.exit(1)
-        configs = [config_map[args.config]]
+        if args.config == "Unbounded":
+            configs = "unbounded"
+        else:
+            configs = [config_map[args.config]]
 
     # Load problems
     if args.all:
@@ -1730,7 +1903,7 @@ def main():
         )
         return
 
-    # Single-model mode
+    # Single-model mode (must create client before Unbounded dispatch below)
     model_url = args.model
     model_name = args.model_name or derive_model_name(model_url)
 
@@ -1753,6 +1926,29 @@ def main():
             print(f"Check your API key and model name.")
         sys.exit(1)
     print(f"Server OK: {model_url}  (model_name: {model_name})")
+
+    # Unbounded mode: bypass binary search entirely
+    if configs == "unbounded":
+        print(f"Problems: {[p['problem_id'] for p in problems]}")
+        print(f"Trials (n_runs): {trials_per_window}")
+        print(f"Config: Unbounded (full context window, no token hints)")
+        print()
+        for problem in problems:
+            print(f"\n{'#'*60}")
+            print(f"  PROBLEM: {problem['problem_id']}")
+            print(f"  Answer: {problem['ground_truth']}")
+            print(f"{'#'*60}")
+            run_unbounded(
+                client=client,
+                model_name=model_name,
+                problem_id=problem["problem_id"],
+                problem_text=problem["problem_text"],
+                correct_answer=problem["ground_truth"],
+                n_runs=trials_per_window,
+                topic=problem.get("topic", "math"),
+            )
+        print("\n\nAll done (Unbounded). Run --analyze to see summary.")
+        return
 
     print(f"Problems: {[p['problem_id'] for p in problems]}")
     print(f"Search range: [{min_window}, {max_window}]")
