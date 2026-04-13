@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Qwen3.5-35B-A3B-Q4",
+    "url": "http://localhost:8080",
+    "api_key_env": null
+  },
+  {
+    "name": "gemini-3.1-flash-lite-preview",
+    "url": "gemini://gemini-3.1-flash-lite-preview",
+    "api_key_env": "GEMINI_API_KEY"
+  },
+  {
+    "name": "openai/gpt-oss-120b",
+    "url": "openrouter://openai/gpt-oss-120b:free",
+    "api_key_env": "OPENROUTER_API_KEY"
+  },
+  {
+    "name": "openai/gpt-oss-20b",
+    "url": "openrouter://openai/gpt-oss-20b:free",
+    "api_key_env": "OPENROUTER_API_KEY"
+  },
+  {
+    "name": "nvidia/nemotron-3-super-120b",
+    "url": "openrouter://nvidia/nemotron-3-super-120b-a12b:free",
+    "api_key_env": "OPENROUTER_API_KEY"
+  },
+  {
+    "name": "qwen/qwen3-next-80b",
+    "url": "openrouter://qwen/qwen3-next-80b-a3b-instruct:free",
+    "api_key_env": "OPENROUTER_API_KEY"
+  }
+]
