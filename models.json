@@ -1,0 +1,13 @@
+[
+  {"name": "qwen/qwen3.6-plus-preview", "url": "openrouter://qwen/qwen3.6-plus-preview:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "nvidia/nemotron-3-super-120b", "url": "openrouter://nvidia/nemotron-3-super-120b-a12b:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "z-ai/glm-4.5-air", "url": "openrouter://z-ai/glm-4.5-air:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "arcee-ai/trinity-large-preview", "url": "openrouter://arcee-ai/trinity-large-preview:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "qwen/qwen3-coder", "url": "openrouter://qwen/qwen3-coder:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "stepfun/step-3.5-flash", "url": "openrouter://stepfun/step-3.5-flash:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "minimax/minimax-m2.5", "url": "openrouter://minimax/minimax-m2.5:free", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "gemini-3.1-flash-lite-preview", "url": "gemini://gemini-3.1-flash-lite-preview", "api_key_env": "GEMINI_API_KEY"},
+  {"name": "mistral-small-2603", "url": "openrouter://mistralai/mistral-small-2603", "api_key_env": "OPENROUTER_API_KEY"},
+  {"name": "claude-sonnet-4.6", "url": "anthropic://claude-sonnet-4-6", "api_key_env": "ANTHROPIC_OAUTHTOKEN"},
+  {"name": "deepseek-v3.2", "url": "openrouter://deepseek/deepseek-chat-v3-0324", "api_key_env": "OPENROUTER_API_KEY"}
+]

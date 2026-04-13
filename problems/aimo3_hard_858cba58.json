@@ -1,0 +1,10 @@
+{
+  "problem_id": "aimo3_hard_858cba58",
+  "problem_text": "All vertices of a pyramid lie on the facets of a cube but not on its edges, and each facet contains at least one vertex. What is the maximum possible number of the vertices of the pyramid?",
+  "ground_truth": "13",
+  "topic": "other",
+  "source": "aimo3_hard",
+  "gptoss_20b_pass_rate": 0.125,
+  "gptoss_20b_n_correct": 2,
+  "gptoss_20b_correct_token_avg": null
+}

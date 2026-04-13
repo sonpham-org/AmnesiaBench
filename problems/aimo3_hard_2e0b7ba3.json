@@ -1,0 +1,10 @@
+{
+  "problem_id": "aimo3_hard_2e0b7ba3",
+  "problem_text": "How many ways are there to paint the first level of the Th\u00e1p R\u00f9a tower model, given that the $3$ doorways at the front are painted with the same color and each of the remaining $7$ doorways is painted with one of the three colors such that any two adjacent doorways with a common side on the same level are painted with different colors?",
+  "ground_truth": "216",
+  "topic": "combinatorics",
+  "source": "aimo3_hard",
+  "gptoss_20b_pass_rate": 0.125,
+  "gptoss_20b_n_correct": 2,
+  "gptoss_20b_correct_token_avg": null
+}
